@@ -5,8 +5,10 @@ import type { EnviroventAccessory } from '../accessory.js';
  * Fanv2 service — main fan control with airflow speed slider.
  *
  * Maps RotationSpeed to the unit's VAR mode percentage.
- * The unit's min/max airflow percentages (from airflowConfiguration)
- * are mapped to HomeKit's 0-100% range.
+ * The unit's VAR range (e.g. 24-100%) is mapped to HomeKit's 0-100%.
+ *
+ * PIV units are always physically on — the Active characteristic always
+ * reports 1, and tapping "off" sets the fan to minimum speed instead.
  */
 export class FanService {
   private readonly service: Service;
@@ -19,20 +21,17 @@ export class FanService {
       accessory.accessory.getService(platform.Service.Fanv2) ??
       accessory.accessory.addService(platform.Service.Fanv2, 'Fan');
 
-    // Active characteristic — PIV units run 24/7 so this is mostly informational
     this.service
       .getCharacteristic(platform.Characteristic.Active)
       .onGet(() => this.getActive())
       .onSet((value) => this.setActive(value));
 
-    // RotationSpeed — maps to airflow percentage
     this.service
       .getCharacteristic(platform.Characteristic.RotationSpeed)
       .setProps({ minValue: 0, maxValue: 100, minStep: 1 })
       .onGet(() => this.getRotationSpeed())
       .onSet((value) => this.setRotationSpeed(value));
 
-    // CurrentFanState — read-only status
     this.service
       .getCharacteristic(platform.Characteristic.CurrentFanState)
       .onGet(() => this.getCurrentFanState());
@@ -40,33 +39,34 @@ export class FanService {
 
   update(): void {
     const platform = this.accessory.platform;
-    this.service.updateCharacteristic(platform.Characteristic.Active, this.getActive());
+    // Always report as active — the unit physically never turns off
+    this.service.updateCharacteristic(platform.Characteristic.Active, 1);
     this.service.updateCharacteristic(platform.Characteristic.RotationSpeed, this.getRotationSpeed());
     this.service.updateCharacteristic(platform.Characteristic.CurrentFanState, this.getCurrentFanState());
   }
 
   private getActive(): CharacteristicValue {
-    const settings = this.accessory.unitState.settings;
-    if (!settings) return 0;
-    // Active if airflow is active
-    return settings.airflow.active ? 1 : 0;
+    // PIV units are always on — always report active
+    return 1;
   }
 
   private async setActive(value: CharacteristicValue): Promise<void> {
-    const active = value === 1;
-    if (!active) {
-      // PIV units can't truly turn off — map "off" to the lowest airflow speed.
+    if (value === 0) {
+      // Can't turn off a PIV — set to minimum speed instead
       const settings = this.accessory.unitState.settings;
-      if (!settings) return;
-      const minPercent = settings.airflowConfiguration.varMinPercentage;
-      this.accessory.platform.log.info(`PIV unit cannot turn off. Setting to minimum airflow (${minPercent}%).`);
-      await this.sendAirflowUpdate(minPercent, settings);
+      if (settings) {
+        const minPercent = settings.airflowConfiguration.varMinPercentage;
+        this.accessory.platform.log.info(`PIV unit cannot turn off. Setting to minimum airflow (${minPercent}%).`);
+        await this.sendAirflowUpdate(minPercent, settings);
+      }
     }
 
-    // The unit is always physically on — immediately reflect that in HomeKit
-    // so the icon never renders as "off".
-    this.service.updateCharacteristic(this.accessory.platform.Characteristic.Active, 1);
-    this.service.updateCharacteristic(this.accessory.platform.Characteristic.RotationSpeed, 0);
+    // Push Active back to 1 after a short delay so HomeKit's UI never shows
+    // the grey "off" icon. The delay lets the onSet handler return first,
+    // then we override HomeKit's cached state.
+    setTimeout(() => {
+      this.service.updateCharacteristic(this.accessory.platform.Characteristic.Active, 1);
+    }, 100);
   }
 
   private getRotationSpeed(): CharacteristicValue {
@@ -77,7 +77,6 @@ export class FanService {
     const currentValue = settings.airflow.value;
 
     if (settings.airflow.mode === 'VAR') {
-      // Map unit's VAR range (24-100%) to HomeKit's 0-100%
       return this.unitPercentToHomeKit(currentValue, config.varMinPercentage, config.maxPercentage);
     }
 
@@ -134,14 +133,13 @@ export class FanService {
     if (!settings || !this.accessory.unitState.connected) {
       return Characteristic.CurrentFanState.INACTIVE;
     }
-    return settings.airflow.active
-      ? Characteristic.CurrentFanState.BLOWING_AIR
-      : Characteristic.CurrentFanState.IDLE;
+    return Characteristic.CurrentFanState.BLOWING_AIR;
   }
 
   /**
    * Map unit percentage (within min-max range) to HomeKit 0-100%.
-   * E.g., if unit range is 20-100%, unit value 60% → HomeKit 50%.
+   * Uses Math.round for a stable round-trip: HomeKit → unit → HomeKit
+   * returns the same value.
    */
   private unitPercentToHomeKit(unitValue: number, min: number, max: number): number {
     if (max <= min) return 50;
@@ -151,12 +149,11 @@ export class FanService {
 
   /**
    * Map HomeKit 0-100% to unit percentage (within min-max range).
-   * Uses Math.floor so that low slider values (e.g. 1%) clamp to the unit's
-   * minimum (24%) rather than rounding up to 25%.
+   * Uses Math.round to match unitPercentToHomeKit, ensuring the
+   * round-trip is stable (no drift on each poll cycle).
    */
   private homeKitToUnitPercent(homeKitValue: number, min: number, max: number): number {
-    if (homeKitValue >= 100) return max;
     const unitValue = min + (homeKitValue / 100) * (max - min);
-    return Math.floor(Math.max(min, Math.min(max, unitValue)));
+    return Math.round(Math.max(min, Math.min(max, unitValue)));
   }
 }
