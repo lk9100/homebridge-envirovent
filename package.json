@@ -1,0 +1,40 @@
+{
+  "name": "homebridge-envirovent",
+  "version": "0.1.0",
+  "description": "Homebridge plugin for Envirovent Atmos PIV ventilation units",
+  "type": "module",
+  "main": "dist/homebridge/index.js",
+  "types": "dist/homebridge/index.d.ts",
+  "engines": {
+    "node": "^22.0.0",
+    "homebridge": "^1.8.0 || ^2.0.0-beta.0"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "watch": "npm run build && npm link && nodemon",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "envirovent",
+    "atmos",
+    "piv",
+    "ventilation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "homebridge": "^1.8.0 || ^2.0.0-beta.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "homebridge": "^1.8.0",
+    "rimraf": "^6.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

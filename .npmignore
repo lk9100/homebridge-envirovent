@@ -1,0 +1,12 @@
+src/
+test/
+android-app/
+.github/
+.claude/
+tsconfig*.json
+vitest.config.ts
+nodemon.json
+.nvmrc
+.gitignore
+coverage/
+API-FINDINGS.md

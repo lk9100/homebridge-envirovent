@@ -1,0 +1,61 @@
+{
+  "pluginAlias": "EnviroventPIV",
+  "pluginType": "platform",
+  "singular": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "Envirovent PIV",
+        "description": "Display name for the accessory in HomeKit"
+      },
+      "host": {
+        "title": "Unit IP Address",
+        "type": "string",
+        "description": "IP address of your Envirovent Atmos PIV unit. Find it via your router or the myenvirovent app.",
+        "format": "ipv4"
+      },
+      "port": {
+        "title": "Port",
+        "type": "integer",
+        "default": 1337,
+        "description": "TCP port (default: 1337). Only change if you know your unit uses a different port."
+      },
+      "pollInterval": {
+        "title": "Poll Interval (seconds)",
+        "type": "integer",
+        "default": 30,
+        "minimum": 10,
+        "description": "How often to poll the unit for status updates. Minimum 10 seconds."
+      },
+      "showBoostSwitch": {
+        "title": "Show Boost Switch",
+        "type": "boolean",
+        "default": true,
+        "description": "Expose a separate switch for boost mode. Can be used in HomeKit scenes and automations."
+      },
+      "advanced": {
+        "title": "Advanced",
+        "type": "object",
+        "expandable": true,
+        "properties": {
+          "showHeaterSwitch": {
+            "title": "Show Heater Switch",
+            "type": "boolean",
+            "default": false,
+            "description": "Expose a switch to enable/disable the auto heater"
+          },
+          "showSummerShutdownSwitch": {
+            "title": "Show Summer Shutdown Switch",
+            "type": "boolean",
+            "default": false,
+            "description": "Expose a switch to enable/disable summer shutdown mode"
+          }
+        }
+      }
+    },
+    "required": ["host"]
+  }
+}
