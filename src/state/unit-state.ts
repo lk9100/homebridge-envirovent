@@ -27,6 +27,16 @@ export class UnitState extends EventEmitter {
   private readonly failureThreshold: number;
   private readonly client: EnviroventClient;
 
+  /**
+   * Timestamp of the last optimistic update. During the grace period after an
+   * optimistic update, poll results that differ from our optimistic state are
+   * ignored — this prevents a stale in-flight poll from overwriting a fresh
+   * optimistic value. The grace period is long enough for the TCP command to
+   * reach the unit and for one full poll cycle to confirm it.
+   */
+  private _lastOptimisticAt: number = 0;
+  private static readonly OPTIMISTIC_GRACE_MS = 5000;
+
   constructor(client: EnviroventClient, options: UnitStateOptions = {}) {
     super();
     this.client = client;
@@ -69,6 +79,26 @@ export class UnitState extends EventEmitter {
       }
 
       const previous = this._settings;
+
+      // If we recently applied an optimistic update, don't let a stale poll
+      // overwrite it. An in-flight poll that started BEFORE our TCP command
+      // will return the old value — accepting it would undo the optimistic
+      // update and cause the UI to snap back to the previous state.
+      const inGracePeriod =
+        this._lastOptimisticAt > 0 &&
+        Date.now() - this._lastOptimisticAt < UnitState.OPTIMISTIC_GRACE_MS;
+
+      if (inGracePeriod) {
+        if (settingsEqual(this._settings, response.settings)) {
+          // Poll confirms the optimistic value — grace period can end
+          this._lastOptimisticAt = 0;
+          this._settings = response.settings;
+        }
+        // Otherwise keep the optimistic state; don't emit stateChanged
+        return this._settings;
+      }
+
+      this._lastOptimisticAt = 0;
       this._settings = response.settings;
 
       if (!settingsEqual(previous, response.settings)) {
@@ -90,6 +120,7 @@ export class UnitState extends EventEmitter {
     if (!this._settings) return;
 
     this._settings = { ...this._settings, ...patch };
+    this._lastOptimisticAt = Date.now();
     this.emit('stateChanged', this._settings);
   }
 

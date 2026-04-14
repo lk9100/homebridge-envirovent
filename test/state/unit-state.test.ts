@@ -226,6 +226,63 @@ describe('UnitState', () => {
     expect(result!.airflow.value).toBe(45);
   });
 
+  it('poll does not overwrite optimistic update with stale data (grace period)', async () => {
+    let airflowValue = 50;
+    const client = createMockClient(async () => ({
+      success: true as const,
+      unitType: 'piv',
+      settings: createMockSettings({ airflow: { mode: 'VAR', value: airflowValue, active: true } }),
+    }));
+
+    const state = new UnitState(client);
+    await state.poll(); // Initial: value=50
+    expect(state.settings!.airflow.value).toBe(50);
+
+    // Apply optimistic update (simulates user setting slider to 24%)
+    state.applyOptimistic({ airflow: { mode: 'VAR', value: 24, active: true } });
+    expect(state.settings!.airflow.value).toBe(24);
+
+    // A stale poll arrives (unit still reports 50 because our TCP command
+    // hasn't reached it yet). Without the grace period, this would overwrite
+    // our optimistic 24 back to 50, causing the UI to snap to the old value.
+    const staleResult = await state.poll();
+    expect(staleResult!.airflow.value).toBe(24); // Optimistic state preserved
+    expect(state.settings!.airflow.value).toBe(24); // NOT 50
+
+    // No stateChanged should have fired for the stale poll
+    const handler = vi.fn();
+    state.on('stateChanged', handler);
+    await state.poll(); // Another stale poll
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('poll confirms optimistic update when unit agrees', async () => {
+    let airflowValue = 50;
+    const client = createMockClient(async () => ({
+      success: true as const,
+      unitType: 'piv',
+      settings: createMockSettings({ airflow: { mode: 'VAR', value: airflowValue, active: true } }),
+    }));
+
+    const state = new UnitState(client);
+    await state.poll(); // Initial: value=50
+
+    state.applyOptimistic({ airflow: { mode: 'VAR', value: 24, active: true } });
+
+    // Unit now reports 24 (command arrived)
+    airflowValue = 24;
+    await state.poll();
+
+    // Grace period should be cleared, normal polling resumes
+    // Simulate the unit changing to something else (e.g. physical control)
+    airflowValue = 60;
+    const handler = vi.fn();
+    state.on('stateChanged', handler);
+    await state.poll();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(state.settings!.airflow.value).toBe(60);
+  });
+
   it('records failure when unit returns success=false', async () => {
     const client = createMockClient(async () => ({
       success: false as const,

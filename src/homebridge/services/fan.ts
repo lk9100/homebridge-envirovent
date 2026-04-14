@@ -108,21 +108,20 @@ export class FanService {
     // or from HomeKit sending RotationSpeed=0 alongside Active=0
     const unitPercent = Math.max(this.varMin, Math.min(this.varMax, Math.round(speed)));
 
-    // If the value was below varMin, bounce the UI back to varMin immediately.
-    // We must also apply the optimistic state update NOW (not after the debounce)
-    // so that any subsequent getRotationSpeed() call returns varMin instead of
-    // the old polled value. Without this, HomeKit verifies the bounce-back by
-    // calling getRotationSpeed(), reads the stale value (e.g. 50%), and snaps
-    // the slider back there instead of staying at 24%.
+    // If the value was below varMin, bounce the UI back to varMin.
+    //
+    // CRITICAL: applyOptimistic MUST run in a setTimeout, not synchronously.
+    // HAP-NodeJS sets `characteristic.value = requestedValue` AFTER our onSet
+    // handler returns. If we call applyOptimistic synchronously (triggering
+    // stateChanged → update() → updateCharacteristic(24)), HAP immediately
+    // overwrites that 24 back to the requested value (e.g. 10). By deferring
+    // to a setTimeout, we run AFTER HAP finishes, so our value sticks.
+    // This matches the setActive(0) bounce-back pattern which already works.
     if (speed < this.varMin) {
-      this.accessory.unitState.applyOptimistic({
-        airflow: { mode: 'VAR', value: this.varMin, active: true },
-      });
       setTimeout(() => {
-        this.service.updateCharacteristic(
-          this.accessory.platform.Characteristic.RotationSpeed,
-          this.varMin,
-        );
+        this.accessory.unitState.applyOptimistic({
+          airflow: { mode: 'VAR', value: this.varMin, active: true },
+        });
       }, 50);
     }
 

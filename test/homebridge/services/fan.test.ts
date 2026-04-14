@@ -152,7 +152,9 @@ describe('FanService — RotationSpeed (get)', () => {
 describe('FanService — RotationSpeed (set, sub-minimum bounce-back)', () => {
   it('bounces RotationSpeed=0 back to varMin (24)', async () => {
     const { fakeAccessory, platform } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    const fanService = new FanService(fakeAccessory);
+    // Wire up the event like the real accessory does
+    fakeAccessory.unitState.on('stateChanged', () => fanService.update());
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     await speed.simulateSet(0);
@@ -163,7 +165,8 @@ describe('FanService — RotationSpeed (set, sub-minimum bounce-back)', () => {
 
   it('bounces RotationSpeed=10 back to varMin (24)', async () => {
     const { fakeAccessory, platform } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    const fanService = new FanService(fakeAccessory);
+    fakeAccessory.unitState.on('stateChanged', () => fanService.update());
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     await speed.simulateSet(10);
@@ -174,7 +177,8 @@ describe('FanService — RotationSpeed (set, sub-minimum bounce-back)', () => {
 
   it('bounces RotationSpeed=23 back to varMin (24)', async () => {
     const { fakeAccessory, platform } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    const fanService = new FanService(fakeAccessory);
+    fakeAccessory.unitState.on('stateChanged', () => fanService.update());
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     await speed.simulateSet(23);
@@ -195,10 +199,11 @@ describe('FanService — RotationSpeed (set, sub-minimum bounce-back)', () => {
     expect(speed.getValue()).toBeNull(); // No updateCharacteristic called
   });
 
-  it('getRotationSpeed returns varMin immediately after sub-minimum set (not old polled value)', async () => {
+  it('getRotationSpeed returns varMin after sub-minimum set (not old polled value)', async () => {
     // Regression: dragging from 50% to 10% used to bounce back to 50% because
     // getRotationSpeed() still read the old polled value (50) instead of the
-    // clamped value (24). The fix applies an optimistic update immediately.
+    // clamped value (24). The fix applies an optimistic update in a setTimeout
+    // (must be deferred so HAP finishes processing the SET first).
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 50, active: true },
     });
@@ -211,8 +216,10 @@ describe('FanService — RotationSpeed (set, sub-minimum bounce-back)', () => {
     // Set below varMin
     await speed.simulateSet(10);
 
-    // IMMEDIATELY after the set (no waiting), getRotationSpeed should return varMin
-    // because the optimistic update was applied synchronously
+    // Wait for the deferred optimistic update (runs in setTimeout after HAP
+    // finishes the SET — in real HAP this is critical to avoid value overwrite)
+    await new Promise((r) => setTimeout(r, 100));
+
     expect(speed.simulateGet()).toBe(UNIT_VAR_MIN);
   });
 
