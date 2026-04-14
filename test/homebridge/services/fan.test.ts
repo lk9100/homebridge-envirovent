@@ -126,9 +126,9 @@ describe('FanService — Active', () => {
     await active.simulateSet(0);
     await new Promise((r) => setTimeout(r, 100));
 
-    // Bounce-back should still fire
+    // Active should still be forced back to 1 (PIV is always on)
     expect(active.getValue()).toBe(1);
-    // But no TCP send
+    // But no TCP send since settings are null
     expect(mockClient.setHomeSettings).not.toHaveBeenCalled();
   });
 });
@@ -361,11 +361,7 @@ describe('FanService — error handling', () => {
     expect(platform.log.error).toHaveBeenCalledWith('Failed to set airflow:', expect.any(Error));
   });
 
-  it('applies immediate optimistic update for grace period, even if TCP later fails', async () => {
-    // The immediate applyOptimistic activates the grace period to protect
-    // the cache from stale polls. If TCP fails, the poll will correct the
-    // state after the grace period expires (5s). This is the right trade-off:
-    // brief optimistic state > slider snap-back from a stale poll.
+  it('does not apply optimistic update when TCP fails', async () => {
     const { fakeAccessory, unitState, mockClient } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 50, active: true },
     });
@@ -376,15 +372,10 @@ describe('FanService — error handling', () => {
     );
 
     await speed.simulateSet(80);
-
-    // Immediate optimistic update was applied (for grace period protection)
-    const expectedUnitValue = Math.round(24 + (80 / 100) * 76); // 85
-    expect(unitState.settings!.airflow.value).toBe(expectedUnitValue);
-
-    // TCP fails — but sendAirflowUpdate's applyOptimistic is NOT called
     await new Promise((r) => setTimeout(r, 450));
 
-    // The error was logged
+    // TCP failed — optimistic update in sendAirflowUpdate was NOT called
+    expect(unitState.settings!.airflow.value).toBe(50);
     expect(fakeAccessory.platform.log.error).toHaveBeenCalledWith('Failed to set airflow:', expect.any(Error));
   });
 });

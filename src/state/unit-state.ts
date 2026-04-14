@@ -28,11 +28,11 @@ export class UnitState extends EventEmitter {
   private readonly client: EnviroventClient;
 
   /**
-   * Timestamp of the last optimistic update. During the grace period after an
-   * optimistic update, poll results that differ from our optimistic state are
-   * ignored — this prevents a stale in-flight poll from overwriting a fresh
-   * optimistic value. The grace period is long enough for the TCP command to
-   * reach the unit and for one full poll cycle to confirm it.
+   * Timestamp of the last optimistic update. During the grace period, poll
+   * results that differ from the optimistic state are ignored — preventing a
+   * stale in-flight poll from overwriting a fresh value across all services
+   * (fan speed, boost, etc.). The grace period covers the TCP round-trip plus
+   * one full poll cycle for confirmation.
    */
   private _lastOptimisticAt: number = 0;
   private static readonly OPTIMISTIC_GRACE_MS = 5000;

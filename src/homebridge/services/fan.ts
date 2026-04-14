@@ -10,11 +10,9 @@ import type { EnviroventAccessory } from '../accessory.js';
  *   HK 0%   → unit varMin (24%)
  *   HK 100% → unit varMax (100%)
  *
- * This avoids all custom minValue/maxValue props, bounce-back hacks,
- * and HAP validation fights. The slider behaves 100% natively.
- *
  * PIV units are always physically on — the Active characteristic always
- * reports 1, and tapping "off" sets the fan to minimum speed (HK 0%).
+ * reports 1. Tapping "off" pushes Active back to 1 and sets the fan to
+ * minimum speed (HK 1%).
  */
 export class FanService {
   private readonly service: Service;
@@ -52,6 +50,7 @@ export class FanService {
 
     this.service
       .getCharacteristic(platform.Characteristic.RotationSpeed)
+      .setProps({ minValue: 0, maxValue: 100, minStep: 1 })
       .onGet(() => this.getRotationSpeed())
       .onSet((value) => this.setRotationSpeed(value));
 
@@ -88,26 +87,19 @@ export class FanService {
   }
 
   private async setActive(value: CharacteristicValue): Promise<void> {
-    // Bounce Active back to 1 after HAP finishes the SET.
-    // Push RotationSpeed=1 (not 0) so the tile visually shows the unit is
-    // still running at its minimum — 0% would imply it's actually off.
+    // PIV units cannot turn off. Push Active=1 back after HAP finishes the
+    // SET, and set RotationSpeed=1 (HK 1% = minimum, not 0% which implies off).
     setTimeout(() => {
       this.service.updateCharacteristic(this.accessory.platform.Characteristic.Active, 1);
       this.service.updateCharacteristic(this.accessory.platform.Characteristic.RotationSpeed, 1);
     }, 50);
 
     if (value === 0) {
-      // Can't turn off a PIV — send minimum speed to unit (fire-and-forget)
       this._cachedHK = 1;
       this._lastSentUnit = this.varMin;
       const settings = this.accessory.unitState.settings;
       if (settings) {
         this.accessory.platform.log.info('PIV unit cannot turn off. Setting to minimum airflow (1%).');
-        // Activate the grace period NOW so a stale in-flight poll can't
-        // overwrite our cache before the TCP command reaches the unit.
-        this.accessory.unitState.applyOptimistic({
-          airflow: { mode: 'VAR', value: this.varMin, active: true },
-        });
         this.sendAirflowUpdate(this.varMin, settings);
       }
     }
@@ -151,12 +143,6 @@ export class FanService {
     // avoiding drift from the lossy HK→unit→HK round-trip.
     this._cachedHK = hkPercent;
     this._lastSentUnit = unitPercent;
-
-    // Activate the grace period NOW so a stale in-flight poll can't
-    // overwrite our cache before the TCP command reaches the unit.
-    this.accessory.unitState.applyOptimistic({
-      airflow: { mode: 'VAR', value: unitPercent, active: true },
-    });
 
     // Debounce rapid slider changes (300ms)
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
