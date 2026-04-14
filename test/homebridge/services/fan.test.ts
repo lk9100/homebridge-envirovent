@@ -94,6 +94,41 @@ describe('FanService', () => {
     expect(speed?.simulateGet()).toBe(100);
   });
 
+  it('maps HomeKit 1% to unit minimum (24%), not 25%', () => {
+    const { fakeAccessory } = buildTestAccessory();
+    const fanService = new FanService(fakeAccessory);
+
+    // Access the private method via the instance for testing
+    // HomeKit 1% with range 24-100: floor(24 + 0.01 * 76) = floor(24.76) = 24
+    const result = (fanService as unknown as { homeKitToUnitPercent(v: number, min: number, max: number): number })
+      .homeKitToUnitPercent(1, 24, 100);
+    expect(result).toBe(24);
+  });
+
+  it('maps HomeKit 100% to unit maximum (100%)', () => {
+    const { fakeAccessory } = buildTestAccessory();
+    const fanService = new FanService(fakeAccessory);
+
+    const result = (fanService as unknown as { homeKitToUnitPercent(v: number, min: number, max: number): number })
+      .homeKitToUnitPercent(100, 24, 100);
+    expect(result).toBe(100);
+  });
+
+  it('setActive(0) pushes Active back to 1 (unit never truly off)', async () => {
+    const { fakeAccessory, platform, mockClient } = buildTestAccessory();
+    const fanService = new FanService(fakeAccessory);
+
+    const service = fakeAccessory.accessory.getService('Fan') as unknown as MockService;
+    const active = service?.getCharacteristic(platform.Characteristic.Active);
+
+    await active?.simulateSet(0);
+    // Wait for command queue
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Active should have been pushed back to 1
+    expect(active?.getValue()).toBe(1);
+  });
+
   it('reports BLOWING_AIR state when active and connected', () => {
     const { fakeAccessory, platform } = buildTestAccessory();
     const fanService = new FanService(fakeAccessory);

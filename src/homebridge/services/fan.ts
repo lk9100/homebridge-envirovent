@@ -53,14 +53,20 @@ export class FanService {
   }
 
   private async setActive(value: CharacteristicValue): Promise<void> {
-    // PIV units are designed to run 24/7. Setting "inactive" doesn't map cleanly
-    // to any API command. We'll log it but not send a command.
     const active = value === 1;
     if (!active) {
-      this.accessory.platform.log.info(
-        'PIV units are designed to run continuously. "Off" state is not supported.',
-      );
+      // PIV units can't truly turn off — map "off" to the lowest airflow speed.
+      const settings = this.accessory.unitState.settings;
+      if (!settings) return;
+      const minPercent = settings.airflowConfiguration.varMinPercentage;
+      this.accessory.platform.log.info(`PIV unit cannot turn off. Setting to minimum airflow (${minPercent}%).`);
+      await this.sendAirflowUpdate(minPercent, settings);
     }
+
+    // The unit is always physically on — immediately reflect that in HomeKit
+    // so the icon never renders as "off".
+    this.service.updateCharacteristic(this.accessory.platform.Characteristic.Active, 1);
+    this.service.updateCharacteristic(this.accessory.platform.Characteristic.RotationSpeed, 0);
   }
 
   private getRotationSpeed(): CharacteristicValue {
@@ -145,9 +151,12 @@ export class FanService {
 
   /**
    * Map HomeKit 0-100% to unit percentage (within min-max range).
+   * Uses Math.floor so that low slider values (e.g. 1%) clamp to the unit's
+   * minimum (24%) rather than rounding up to 25%.
    */
   private homeKitToUnitPercent(homeKitValue: number, min: number, max: number): number {
+    if (homeKitValue >= 100) return max;
     const unitValue = min + (homeKitValue / 100) * (max - min);
-    return Math.round(Math.max(min, Math.min(max, unitValue)));
+    return Math.floor(Math.max(min, Math.min(max, unitValue)));
   }
 }
