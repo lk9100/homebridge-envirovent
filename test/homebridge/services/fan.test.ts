@@ -80,7 +80,7 @@ describe('FanService — Active', () => {
     expect(active.getValue()).toBe(1);
   });
 
-  it('setActive(0) sets slider to HK 0% (minimum speed)', async () => {
+  it('setActive(0) sets slider to HK 1% (minimum, not 0% which implies off)', async () => {
     const { fakeAccessory, platform } = buildTestAccessory();
     new FanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
@@ -89,7 +89,7 @@ describe('FanService — Active', () => {
     await active.simulateSet(0);
     await new Promise((r) => setTimeout(r, 100));
 
-    expect(speed.getValue()).toBe(0);
+    expect(speed.getValue()).toBe(1);
   });
 
   it('setActive(0) sends varMin (24%) to unit', async () => {
@@ -104,6 +104,32 @@ describe('FanService — Active', () => {
     const call = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.airflow.value).toBe(UNIT_VAR_MIN);
     expect(call.airflow.mode).toBe('VAR');
+  });
+
+  it('setActive(1) does not send any command to the unit', async () => {
+    const { fakeAccessory, platform, mockClient } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
+
+    await active.simulateSet(1);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(mockClient.setHomeSettings).not.toHaveBeenCalled();
+  });
+
+  it('setActive(0) skips TCP send when settings are null', async () => {
+    const { fakeAccessory, platform, unitState, mockClient } = buildTestAccessory();
+    (unitState as unknown as { _settings: null })._settings = null;
+    new FanService(fakeAccessory);
+    const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
+
+    await active.simulateSet(0);
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Bounce-back should still fire
+    expect(active.getValue()).toBe(1);
+    // But no TCP send
+    expect(mockClient.setHomeSettings).not.toHaveBeenCalled();
   });
 });
 
@@ -254,6 +280,133 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
   });
 });
 
+describe('FanService — RotationSpeed (set, edge cases)', () => {
+  it('does nothing when settings are null', async () => {
+    const { fakeAccessory, unitState, mockClient } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    (unitState as unknown as { _settings: null })._settings = null;
+
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+    await speed.simulateSet(50);
+    await new Promise((r) => setTimeout(r, 450));
+
+    expect(mockClient.setHomeSettings).not.toHaveBeenCalled();
+  });
+
+  it('debounces rapid slider changes — only last value is sent', async () => {
+    const { fakeAccessory, mockClient } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    // Rapid fire: 10, 20, 30, 40, 50 in quick succession
+    await speed.simulateSet(10);
+    await speed.simulateSet(20);
+    await speed.simulateSet(30);
+    await speed.simulateSet(40);
+    await speed.simulateSet(50);
+    // Wait for debounce (300ms) + command queue
+    await new Promise((r) => setTimeout(r, 450));
+
+    const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(1); // Only one call, not five
+    expect(calls[0][0].airflow.value).toBe(expectedUnit(50)); // The last value
+  });
+});
+
+// ─── update() ───────────────────────────────────────────────────────
+
+describe('FanService — update()', () => {
+  it('pushes current state to all characteristics', () => {
+    const { fakeAccessory, platform } = buildTestAccessory({
+      airflow: { mode: 'VAR', value: 62, active: true },
+    });
+    const fanService = new FanService(fakeAccessory);
+    fanService.update();
+
+    const service = getService(fakeAccessory);
+    expect(service.getCharacteristic(platform.Characteristic.Active).getValue()).toBe(1);
+    expect(service.getCharacteristic(platform.Characteristic.RotationSpeed).getValue()).toBe(expectedHK(62));
+    expect(service.getCharacteristic(platform.Characteristic.CurrentFanState).getValue()).toBe(2);
+  });
+
+  it('pushes HK 0% when settings are null', () => {
+    const { fakeAccessory, platform, unitState } = buildTestAccessory();
+    const fanService = new FanService(fakeAccessory);
+    (unitState as unknown as { _settings: null })._settings = null;
+
+    fanService.update();
+
+    const service = getService(fakeAccessory);
+    expect(service.getCharacteristic(platform.Characteristic.RotationSpeed).getValue()).toBe(0);
+    expect(service.getCharacteristic(platform.Characteristic.CurrentFanState).getValue()).toBe(0);
+  });
+});
+
+// ─── sendAirflowUpdate error handling ───────────────────────────────
+
+describe('FanService — error handling', () => {
+  it('logs error and does not throw when setHomeSettings fails', async () => {
+    const { fakeAccessory, platform, mockClient } = buildTestAccessory();
+    (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('TCP timeout'));
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
+
+    await speed.simulateSet(50);
+    await new Promise((r) => setTimeout(r, 450));
+
+    expect(platform.log.error).toHaveBeenCalledWith('Failed to set airflow:', expect.any(Error));
+  });
+
+  it('applies optimistic update only on success, not on failure', async () => {
+    const { fakeAccessory, unitState, mockClient } = buildTestAccessory({
+      airflow: { mode: 'VAR', value: 50, active: true },
+    });
+    (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('fail'));
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    await speed.simulateSet(80);
+    await new Promise((r) => setTimeout(r, 450));
+
+    // Optimistic update should NOT have fired — unit value stays at 50
+    expect(unitState.settings!.airflow.value).toBe(50);
+  });
+});
+
+// ─── getRotationSpeed cached HK + null settings ────────────────────
+
+describe('FanService — getRotationSpeed with cache + null settings', () => {
+  it('returns cached HK value when settings become null after a set', async () => {
+    const { fakeAccessory, platform, unitState } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
+
+    // Set a value to populate the cache
+    await speed.simulateSet(50);
+
+    // Settings become null (e.g. connection lost)
+    (unitState as unknown as { _settings: null })._settings = null;
+
+    // Should return cached value, not 0
+    expect(speed.simulateGet()).toBe(50);
+  });
+
+  it('returns 0 when settings are null and no cache exists', () => {
+    const { fakeAccessory, platform, unitState } = buildTestAccessory();
+    (unitState as unknown as { _settings: null })._settings = null;
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
+
+    expect(speed.simulateGet()).toBe(0);
+  });
+});
+
 // ─── HK value caching (anti-drift) ─────────────────────────────────
 
 describe('FanService — HK value caching', () => {
@@ -317,7 +470,7 @@ describe('FanService — HK value caching', () => {
     expect(speed.simulateGet()).toBe(2);
   });
 
-  it('caches HK 0% when tapping "off"', async () => {
+  it('caches HK 1% when tapping "off"', async () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 62, active: true },
     });
@@ -330,7 +483,7 @@ describe('FanService — HK value caching', () => {
     // Unit gets varMin (24)
     fakeAccessory.unitState.applyOptimistic({ airflow: { mode: 'VAR', value: UNIT_VAR_MIN, active: true } });
 
-    expect(speed.simulateGet()).toBe(0); // Cached 0%, not unitToHK(24) which is also 0 here — but validates the cache path
+    expect(speed.simulateGet()).toBe(1); // Cached 1% — not 0% (which implies off)
   });
 
   it('returns computed value when no cache exists (initial state)', () => {

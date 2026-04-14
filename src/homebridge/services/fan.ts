@@ -89,19 +89,20 @@ export class FanService {
 
   private async setActive(value: CharacteristicValue): Promise<void> {
     // Bounce Active back to 1 after HAP finishes the SET.
-    // Push RotationSpeed=0 (HK minimum) so the tile shows 0% not the old value.
+    // Push RotationSpeed=1 (not 0) so the tile visually shows the unit is
+    // still running at its minimum — 0% would imply it's actually off.
     setTimeout(() => {
       this.service.updateCharacteristic(this.accessory.platform.Characteristic.Active, 1);
-      this.service.updateCharacteristic(this.accessory.platform.Characteristic.RotationSpeed, 0);
+      this.service.updateCharacteristic(this.accessory.platform.Characteristic.RotationSpeed, 1);
     }, 50);
 
     if (value === 0) {
       // Can't turn off a PIV — send minimum speed to unit (fire-and-forget)
-      this._cachedHK = 0;
+      this._cachedHK = 1;
       this._lastSentUnit = this.varMin;
       const settings = this.accessory.unitState.settings;
       if (settings) {
-        this.accessory.platform.log.info(`PIV unit cannot turn off. Setting to minimum airflow (${this.varMin}%).`);
+        this.accessory.platform.log.info('PIV unit cannot turn off. Setting to minimum airflow (1%).');
         this.sendAirflowUpdate(this.varMin, settings);
       }
     }
