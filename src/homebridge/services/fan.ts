@@ -103,6 +103,11 @@ export class FanService {
       const settings = this.accessory.unitState.settings;
       if (settings) {
         this.accessory.platform.log.info('PIV unit cannot turn off. Setting to minimum airflow (1%).');
+        // Activate the grace period NOW so a stale in-flight poll can't
+        // overwrite our cache before the TCP command reaches the unit.
+        this.accessory.unitState.applyOptimistic({
+          airflow: { mode: 'VAR', value: this.varMin, active: true },
+        });
         this.sendAirflowUpdate(this.varMin, settings);
       }
     }
@@ -146,6 +151,12 @@ export class FanService {
     // avoiding drift from the lossy HK→unit→HK round-trip.
     this._cachedHK = hkPercent;
     this._lastSentUnit = unitPercent;
+
+    // Activate the grace period NOW so a stale in-flight poll can't
+    // overwrite our cache before the TCP command reaches the unit.
+    this.accessory.unitState.applyOptimistic({
+      airflow: { mode: 'VAR', value: unitPercent, active: true },
+    });
 
     // Debounce rapid slider changes (300ms)
     if (this.debounceTimer) clearTimeout(this.debounceTimer);

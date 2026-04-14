@@ -361,7 +361,11 @@ describe('FanService — error handling', () => {
     expect(platform.log.error).toHaveBeenCalledWith('Failed to set airflow:', expect.any(Error));
   });
 
-  it('applies optimistic update only on success, not on failure', async () => {
+  it('applies immediate optimistic update for grace period, even if TCP later fails', async () => {
+    // The immediate applyOptimistic activates the grace period to protect
+    // the cache from stale polls. If TCP fails, the poll will correct the
+    // state after the grace period expires (5s). This is the right trade-off:
+    // brief optimistic state > slider snap-back from a stale poll.
     const { fakeAccessory, unitState, mockClient } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 50, active: true },
     });
@@ -372,10 +376,16 @@ describe('FanService — error handling', () => {
     );
 
     await speed.simulateSet(80);
+
+    // Immediate optimistic update was applied (for grace period protection)
+    const expectedUnitValue = Math.round(24 + (80 / 100) * 76); // 85
+    expect(unitState.settings!.airflow.value).toBe(expectedUnitValue);
+
+    // TCP fails — but sendAirflowUpdate's applyOptimistic is NOT called
     await new Promise((r) => setTimeout(r, 450));
 
-    // Optimistic update should NOT have fired — unit value stays at 50
-    expect(unitState.settings!.airflow.value).toBe(50);
+    // The error was logged
+    expect(fakeAccessory.platform.log.error).toHaveBeenCalledWith('Failed to set airflow:', expect.any(Error));
   });
 });
 
