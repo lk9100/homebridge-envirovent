@@ -35,7 +35,7 @@ Add to your Homebridge `config.json`:
       "platform": "EnviroventPIV",
       "name": "Envirovent PIV",
       "host": "192.168.1.160",
-      "pollInterval": 30,
+      "pollInterval": 5,
       "showBoostSwitch": true
     }
   ]
@@ -48,7 +48,7 @@ Add to your Homebridge `config.json`:
 | `name` | No | `"Envirovent PIV"` | Display name in HomeKit |
 | `host` | Yes | — | IP address of your unit |
 | `port` | No | `1337` | TCP port |
-| `pollInterval` | No | `30` | Seconds between status polls (min: 10) |
+| `pollInterval` | No | `5` | Seconds between status polls (min: 5) |
 | `showBoostSwitch` | No | `true` | Expose boost as a separate switch for scenes/automations |
 
 ### Finding your unit's IP

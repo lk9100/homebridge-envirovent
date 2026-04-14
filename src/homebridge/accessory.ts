@@ -7,8 +7,8 @@ import { FanService } from './services/fan.js';
 import { BoostService } from './services/boost.js';
 import { FilterService } from './services/filter.js';
 
-const MIN_POLL_INTERVAL = 10;
-const DEFAULT_POLL_INTERVAL = 30;
+const MIN_POLL_INTERVAL = 5;
+const DEFAULT_POLL_INTERVAL = 5;
 
 export class EnviroventAccessory {
   public readonly client: EnviroventClient;

@@ -26,9 +26,9 @@
       "pollInterval": {
         "title": "Poll Interval (seconds)",
         "type": "integer",
-        "default": 30,
-        "minimum": 10,
-        "description": "How often to poll the unit for status updates. Minimum 10 seconds."
+        "default": 5,
+        "minimum": 5,
+        "description": "How often to poll the unit for status updates. Minimum 5 seconds."
       },
       "showBoostSwitch": {
         "title": "Show Boost Switch",
