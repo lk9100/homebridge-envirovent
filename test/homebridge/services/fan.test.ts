@@ -195,6 +195,27 @@ describe('FanService — RotationSpeed (set, sub-minimum bounce-back)', () => {
     expect(speed.getValue()).toBeNull(); // No updateCharacteristic called
   });
 
+  it('getRotationSpeed returns varMin immediately after sub-minimum set (not old polled value)', async () => {
+    // Regression: dragging from 50% to 10% used to bounce back to 50% because
+    // getRotationSpeed() still read the old polled value (50) instead of the
+    // clamped value (24). The fix applies an optimistic update immediately.
+    const { fakeAccessory, platform } = buildTestAccessory({
+      airflow: { mode: 'VAR', value: 50, active: true },
+    });
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
+
+    // Verify starting state
+    expect(speed.simulateGet()).toBe(50);
+
+    // Set below varMin
+    await speed.simulateSet(10);
+
+    // IMMEDIATELY after the set (no waiting), getRotationSpeed should return varMin
+    // because the optimistic update was applied synchronously
+    expect(speed.simulateGet()).toBe(UNIT_VAR_MIN);
+  });
+
   it('sends varMin to the unit when value < varMin is set', async () => {
     const { fakeAccessory, mockClient } = buildTestAccessory();
     new FanService(fakeAccessory);

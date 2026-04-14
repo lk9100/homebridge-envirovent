@@ -109,8 +109,15 @@ export class FanService {
     const unitPercent = Math.max(this.varMin, Math.min(this.varMax, Math.round(speed)));
 
     // If the value was below varMin, bounce the UI back to varMin immediately.
-    // Without this, the slider/tile would show the invalid value until the next poll.
+    // We must also apply the optimistic state update NOW (not after the debounce)
+    // so that any subsequent getRotationSpeed() call returns varMin instead of
+    // the old polled value. Without this, HomeKit verifies the bounce-back by
+    // calling getRotationSpeed(), reads the stale value (e.g. 50%), and snaps
+    // the slider back there instead of staying at 24%.
     if (speed < this.varMin) {
+      this.accessory.unitState.applyOptimistic({
+        airflow: { mode: 'VAR', value: this.varMin, active: true },
+      });
       setTimeout(() => {
         this.service.updateCharacteristic(
           this.accessory.platform.Characteristic.RotationSpeed,
