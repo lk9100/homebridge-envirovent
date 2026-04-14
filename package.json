@@ -1,6 +1,6 @@
 {
   "name": "homebridge-envirovent",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "Homebridge plugin for Envirovent Atmos PIV ventilation units",
   "type": "module",
   "main": "dist/homebridge/index.js",
