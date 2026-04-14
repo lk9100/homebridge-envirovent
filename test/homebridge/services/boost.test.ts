@@ -74,4 +74,15 @@ describe('BoostService', () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(mockClient.setBoost).toHaveBeenCalledWith(false);
   });
+
+  it('update() pushes current boost state to characteristic', () => {
+    const { fakeAccessory, platform } = buildTestAccessory(true);
+    const boostService = new BoostService(fakeAccessory);
+
+    boostService.update();
+
+    const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
+    const on = service?.getCharacteristic(platform.Characteristic.On);
+    expect(on?.getValue()).toBe(true);
+  });
 });

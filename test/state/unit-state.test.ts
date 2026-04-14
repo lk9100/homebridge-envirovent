@@ -225,4 +225,17 @@ describe('UnitState', () => {
     expect(result).not.toBeNull();
     expect(result!.airflow.value).toBe(45);
   });
+
+  it('records failure when unit returns success=false', async () => {
+    const client = createMockClient(async () => ({
+      success: false as const,
+      unitType: 'piv',
+      settings: undefined as unknown as PivSettings,
+    }));
+
+    const state = new UnitState(client, { failureThreshold: 10 });
+    await state.poll();
+    expect(state.consecutiveFailures).toBe(1);
+    expect(state.settings).toBeNull();
+  });
 });

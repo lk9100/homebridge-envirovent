@@ -182,6 +182,88 @@ describe('EnviroventClient', () => {
     expect(result.success).toBe(true);
   });
 
+  it('setSummerBypass sends correct command', async () => {
+    const { server, port } = await createMockUnit((cmd) => {
+      expect(cmd.command).toBe('SetSummerBypass');
+      expect(cmd.enabled).toBe(1);
+      return { success: 1 };
+    });
+    testServer = server;
+
+    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const result = await client.setSummerBypass(true);
+    expect(result.success).toBe(true);
+  });
+
+  it('setInstallerSettings sends correct command', async () => {
+    let receivedCmd: Record<string, unknown> = {};
+    const { server, port } = await createMockUnit((cmd) => {
+      receivedCmd = cmd;
+      return { success: 1 };
+    });
+    testServer = server;
+
+    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    await client.setInstallerSettings({
+      airflow: { mode: 'SET', value: 3 },
+      heater: { autoActive: true, temperature: 10 },
+      boost: { mins: 40 },
+      filter: { resetMonths: 36 },
+      summerBypass: { temperature: 25, summerShutdown: true },
+      spigot: { type: 2 },
+    });
+    expect(receivedCmd.command).toBe('SetInstallerSettings');
+  });
+
+  it('setSpigotType sends correct command', async () => {
+    const { server, port } = await createMockUnit((cmd) => {
+      expect(cmd.command).toBe('SetSpigotType');
+      expect(cmd.type).toBe(2);
+      return { success: 1 };
+    });
+    testServer = server;
+
+    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const result = await client.setSpigotType(2);
+    expect(result.success).toBe(true);
+  });
+
+  it('restoreHomeDefaults sends correct command', async () => {
+    const { server, port } = await createMockUnit((cmd) => {
+      expect(cmd.command).toBe('RestoreHomeSettingsToFactoryDefaults');
+      return { success: 1 };
+    });
+    testServer = server;
+
+    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const result = await client.restoreHomeDefaults();
+    expect(result.success).toBe(true);
+  });
+
+  it('restoreInstallerDefaults sends correct command', async () => {
+    const { server, port } = await createMockUnit((cmd) => {
+      expect(cmd.command).toBe('RestoreInstallerSettingsToFactoryDefaults');
+      return { success: 1 };
+    });
+    testServer = server;
+
+    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const result = await client.restoreInstallerDefaults();
+    expect(result.success).toBe(true);
+  });
+
+  it('restoreCommissioningDefaults sends correct command', async () => {
+    const { server, port } = await createMockUnit((cmd) => {
+      expect(cmd.command).toBe('RestoreCommissioningSettingsToFactoryDefaults');
+      return { success: 1 };
+    });
+    testServer = server;
+
+    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const result = await client.restoreCommissioningDefaults();
+    expect(result.success).toBe(true);
+  });
+
   it('uses default port 1337', () => {
     const client = new EnviroventClient({ host: '192.168.1.100' });
     expect(client.port).toBe(1337);

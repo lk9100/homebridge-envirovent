@@ -89,4 +89,27 @@ describe('FilterService', () => {
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
     expect(level?.simulateGet()).toBe(0);
   });
+
+  it('update() pushes current filter state to characteristics', () => {
+    const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 0, resetMonths: 12 });
+    const filterService = new FilterService(fakeAccessory);
+
+    filterService.update();
+
+    const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
+    expect(service?.getCharacteristic(platform.Characteristic.FilterChangeIndication).getValue()).toBe(1);
+    expect(service?.getCharacteristic(platform.Characteristic.FilterLifeLevel).getValue()).toBe(0);
+  });
+
+  it('returns FILTER_OK and 100% when settings are null', () => {
+    const { fakeAccessory, platform } = buildTestAccessory();
+    // Clear settings
+    const unitState = fakeAccessory.unitState;
+    (unitState as unknown as { _settings: null })._settings = null;
+    const filterService = new FilterService(fakeAccessory);
+
+    const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
+    expect(service?.getCharacteristic(platform.Characteristic.FilterChangeIndication).simulateGet()).toBe(0);
+    expect(service?.getCharacteristic(platform.Characteristic.FilterLifeLevel).simulateGet()).toBe(100);
+  });
 });

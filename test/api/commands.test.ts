@@ -275,4 +275,20 @@ describe('parseGetCurrentSettings', () => {
       parseGetCurrentSettings('{"success":1,"unitType":"piv"}'),
     ).toThrow(ParseError);
   });
+
+  it('returns failure response without throwing when success=0 and no error string', () => {
+    const result = parseGetCurrentSettings('{"success":0}');
+    expect(result.success).toBe(false);
+  });
+
+  it('parses softwareVersion from response', () => {
+    const response = { ...pivSettingsResponse, softwareVersion: '2.5' };
+    const result = parseGetCurrentSettings(JSON.stringify(response));
+    expect(result.softwareVersion).toBe('2.5');
+  });
+
+  it('handles missing softwareVersion gracefully', () => {
+    const result = parseGetCurrentSettings(JSON.stringify(pivSettingsResponse));
+    expect(result.softwareVersion).toBeUndefined();
+  });
 });
