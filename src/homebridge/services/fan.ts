@@ -4,24 +4,34 @@ import type { EnviroventAccessory } from '../accessory.js';
 /**
  * Fanv2 service — main fan control with airflow speed slider.
  *
- * RotationSpeed uses the unit's actual VAR percentage range (e.g. 24-100%)
- * directly — no mapping. The slider shows real unit percentages.
+ * HomeKit's RotationSpeed slider runs 0-100% (standard full range).
+ * We map it linearly to the unit's acceptable range (e.g. 24-100%):
+ *
+ *   HK 0%   → unit varMin (24%)
+ *   HK 100% → unit varMax (100%)
+ *
+ * This avoids all custom minValue/maxValue props, bounce-back hacks,
+ * and HAP validation fights. The slider behaves 100% natively.
  *
  * PIV units are always physically on — the Active characteristic always
- * reports 1, and tapping "off" sets the fan to minimum speed.
- *
- * We intentionally do NOT set minValue on RotationSpeed props. If we did,
- * HAP-NodeJS would reject any value below 24% (e.g. Siri "set to 10%",
- * or the RotationSpeed=0 that HomeKit sends alongside Active=0 when
- * tapping "off") with INVALID_VALUE_IN_REQUEST, which HomeKit renders
- * as "No Response". Instead, we clamp sub-minimum values ourselves and
- * bounce the UI back to varMin.
+ * reports 1, and tapping "off" sets the fan to minimum speed (HK 0%).
  */
 export class FanService {
   private readonly service: Service;
   private debounceTimer?: ReturnType<typeof setTimeout>;
-  private varMin: number;
-  private varMax: number;
+  private readonly varMin: number;
+  private readonly varMax: number;
+
+  /**
+   * Cached HK slider value from the last user-initiated set. Returned by
+   * getRotationSpeed as long as the polled unit value matches what we sent
+   * (within ±1 rounding tolerance). This eliminates slider drift caused
+   * by the lossy HK↔unit round-trip.
+   *
+   * Cleared when a poll shows the unit's value has diverged (external change).
+   */
+  private _cachedHK: number | null = null;
+  private _lastSentUnit: number | null = null;
 
   constructor(private readonly accessory: EnviroventAccessory) {
     const platform = accessory.platform;
@@ -42,7 +52,6 @@ export class FanService {
 
     this.service
       .getCharacteristic(platform.Characteristic.RotationSpeed)
-      .setProps({ maxValue: this.varMax, minStep: 1 })
       .onGet(() => this.getRotationSpeed())
       .onSet((value) => this.setRotationSpeed(value));
 
@@ -58,21 +67,38 @@ export class FanService {
     this.service.updateCharacteristic(platform.Characteristic.CurrentFanState, this.getCurrentFanState());
   }
 
+  // ─── Mapping helpers ──────────────────────────────────────────────
+
+  /** Convert a unit percentage (24-100) to a HomeKit percentage (0-100). */
+  private unitToHK(unitPercent: number): number {
+    const clamped = Math.max(this.varMin, Math.min(this.varMax, unitPercent));
+    return Math.round(((clamped - this.varMin) / (this.varMax - this.varMin)) * 100);
+  }
+
+  /** Convert a HomeKit percentage (0-100) to a unit percentage (24-100). */
+  private hkToUnit(hkPercent: number): number {
+    const clamped = Math.max(0, Math.min(100, hkPercent));
+    return Math.round(this.varMin + (clamped / 100) * (this.varMax - this.varMin));
+  }
+
+  // ─── Characteristic handlers ──────────────────────────────────────
+
   private getActive(): CharacteristicValue {
     return 1;
   }
 
   private async setActive(value: CharacteristicValue): Promise<void> {
-    // Immediately schedule the bounce-back on next tick — don't wait for TCP.
-    // This minimises the grey "off" flash to ~50ms (one event loop tick)
-    // instead of ~250ms (waiting for TCP round-trip + delay).
+    // Bounce Active back to 1 after HAP finishes the SET.
+    // Push RotationSpeed=0 (HK minimum) so the tile shows 0% not the old value.
     setTimeout(() => {
       this.service.updateCharacteristic(this.accessory.platform.Characteristic.Active, 1);
-      this.service.updateCharacteristic(this.accessory.platform.Characteristic.RotationSpeed, this.varMin);
+      this.service.updateCharacteristic(this.accessory.platform.Characteristic.RotationSpeed, 0);
     }, 50);
 
     if (value === 0) {
-      // Can't turn off a PIV — send minimum speed to unit (fire-and-forget for UX speed)
+      // Can't turn off a PIV — send minimum speed to unit (fire-and-forget)
+      this._cachedHK = 0;
+      this._lastSentUnit = this.varMin;
       const settings = this.accessory.unitState.settings;
       if (settings) {
         this.accessory.platform.log.info(`PIV unit cannot turn off. Setting to minimum airflow (${this.varMin}%).`);
@@ -83,47 +109,42 @@ export class FanService {
 
   private getRotationSpeed(): CharacteristicValue {
     const settings = this.accessory.unitState.settings;
-    if (!settings) return this.varMin;
+    if (!settings) return this._cachedHK ?? 0;
 
+    // Resolve the unit's current airflow percentage
+    let unitPercent: number;
     if (settings.airflow.mode === 'VAR') {
-      // Direct passthrough — no mapping needed
-      return Math.max(this.varMin, Math.min(this.varMax, settings.airflow.value));
+      unitPercent = settings.airflow.value;
+    } else {
+      const map = settings.airflowConfiguration.maps.find((m) => m.mark === settings.airflow.value);
+      unitPercent = map ? map.percent : this.varMin;
     }
 
-    // SET mode — find the percentage for the preset mark from airflow maps
-    const map = settings.airflowConfiguration.maps.find((m) => m.mark === settings.airflow.value);
-    if (map) {
-      return Math.max(this.varMin, Math.min(this.varMax, map.percent));
+    // If we have a cached HK value and the unit still matches what we sent
+    // (within ±1 rounding tolerance), return the cached value to avoid drift.
+    // If the unit's value diverged, an external change happened — clear cache.
+    if (this._cachedHK !== null && this._lastSentUnit !== null) {
+      if (Math.abs(unitPercent - this._lastSentUnit) <= 1) {
+        return this._cachedHK;
+      }
+      this._cachedHK = null;
+      this._lastSentUnit = null;
     }
 
-    return this.varMin;
+    return this.unitToHK(unitPercent);
   }
 
   private async setRotationSpeed(value: CharacteristicValue): Promise<void> {
-    const speed = value as number;
+    const hkPercent = value as number;
     const settings = this.accessory.unitState.settings;
     if (!settings) return;
 
-    // Clamp to valid range — values below varMin come from Siri/automations
-    // or from HomeKit sending RotationSpeed=0 alongside Active=0
-    const unitPercent = Math.max(this.varMin, Math.min(this.varMax, Math.round(speed)));
+    const unitPercent = this.hkToUnit(hkPercent);
 
-    // If the value was below varMin, bounce the UI back to varMin.
-    //
-    // CRITICAL: applyOptimistic MUST run in a setTimeout, not synchronously.
-    // HAP-NodeJS sets `characteristic.value = requestedValue` AFTER our onSet
-    // handler returns. If we call applyOptimistic synchronously (triggering
-    // stateChanged → update() → updateCharacteristic(24)), HAP immediately
-    // overwrites that 24 back to the requested value (e.g. 10). By deferring
-    // to a setTimeout, we run AFTER HAP finishes, so our value sticks.
-    // This matches the setActive(0) bounce-back pattern which already works.
-    if (speed < this.varMin) {
-      setTimeout(() => {
-        this.accessory.unitState.applyOptimistic({
-          airflow: { mode: 'VAR', value: this.varMin, active: true },
-        });
-      }, 50);
-    }
+    // Cache the HK value so getRotationSpeed returns it exactly,
+    // avoiding drift from the lossy HK→unit→HK round-trip.
+    this._cachedHK = hkPercent;
+    this._lastSentUnit = unitPercent;
 
     // Debounce rapid slider changes (300ms)
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
