@@ -149,6 +149,86 @@ describe('FanService — RotationSpeed (get)', () => {
   });
 });
 
+describe('FanService — RotationSpeed (set, sub-minimum bounce-back)', () => {
+  it('bounces RotationSpeed=0 back to varMin (24)', async () => {
+    const { fakeAccessory, platform } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
+
+    await speed.simulateSet(0);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(speed.getValue()).toBe(UNIT_VAR_MIN);
+  });
+
+  it('bounces RotationSpeed=10 back to varMin (24)', async () => {
+    const { fakeAccessory, platform } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
+
+    await speed.simulateSet(10);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(speed.getValue()).toBe(UNIT_VAR_MIN);
+  });
+
+  it('bounces RotationSpeed=23 back to varMin (24)', async () => {
+    const { fakeAccessory, platform } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
+
+    await speed.simulateSet(23);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(speed.getValue()).toBe(UNIT_VAR_MIN);
+  });
+
+  it('does NOT bounce varMin (24) — it is the valid minimum', async () => {
+    const { fakeAccessory, platform } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
+
+    // Set to exactly varMin — should NOT trigger a bounce-back
+    await speed.simulateSet(UNIT_VAR_MIN);
+    // The value should not be pushed via updateCharacteristic, only via debounced send
+    // (getValue tracks updateCharacteristic calls, not onSet calls)
+    expect(speed.getValue()).toBeNull(); // No updateCharacteristic called
+  });
+
+  it('sends varMin to the unit when value < varMin is set', async () => {
+    const { fakeAccessory, mockClient } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    await speed.simulateSet(5);
+    // Wait for debounce (300ms) + command queue
+    await new Promise((r) => setTimeout(r, 450));
+
+    const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const lastCall = calls[calls.length - 1][0];
+    expect(lastCall.airflow.value).toBe(UNIT_VAR_MIN);
+    expect(lastCall.airflow.mode).toBe('VAR');
+  });
+
+  it('sends varMin when RotationSpeed=0 is set (Siri "turn off")', async () => {
+    const { fakeAccessory, mockClient } = buildTestAccessory();
+    new FanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    await speed.simulateSet(0);
+    await new Promise((r) => setTimeout(r, 450));
+
+    const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[calls.length - 1][0].airflow.value).toBe(UNIT_VAR_MIN);
+  });
+});
+
 describe('FanService — RotationSpeed (set)', () => {
   it('sends the exact value to the unit for every valid percentage (24-100)', async () => {
     for (const testValue of [UNIT_VAR_MIN, 30, 50, 66, 75, UNIT_MAX]) {

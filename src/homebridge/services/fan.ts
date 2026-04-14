@@ -9,6 +9,13 @@ import type { EnviroventAccessory } from '../accessory.js';
  *
  * PIV units are always physically on — the Active characteristic always
  * reports 1, and tapping "off" sets the fan to minimum speed.
+ *
+ * We intentionally do NOT set minValue on RotationSpeed props. If we did,
+ * HAP-NodeJS would reject any value below 24% (e.g. Siri "set to 10%",
+ * or the RotationSpeed=0 that HomeKit sends alongside Active=0 when
+ * tapping "off") with INVALID_VALUE_IN_REQUEST, which HomeKit renders
+ * as "No Response". Instead, we clamp sub-minimum values ourselves and
+ * bounce the UI back to varMin.
  */
 export class FanService {
   private readonly service: Service;
@@ -35,7 +42,7 @@ export class FanService {
 
     this.service
       .getCharacteristic(platform.Characteristic.RotationSpeed)
-      .setProps({ minValue: this.varMin, maxValue: this.varMax, minStep: 1 })
+      .setProps({ maxValue: this.varMax, minStep: 1 })
       .onGet(() => this.getRotationSpeed())
       .onSet((value) => this.setRotationSpeed(value));
 
@@ -97,8 +104,20 @@ export class FanService {
     const settings = this.accessory.unitState.settings;
     if (!settings) return;
 
-    // Clamp to valid range (HomeKit props should enforce this, but be safe)
+    // Clamp to valid range — values below varMin come from Siri/automations
+    // or from HomeKit sending RotationSpeed=0 alongside Active=0
     const unitPercent = Math.max(this.varMin, Math.min(this.varMax, Math.round(speed)));
+
+    // If the value was below varMin, bounce the UI back to varMin immediately.
+    // Without this, the slider/tile would show the invalid value until the next poll.
+    if (speed < this.varMin) {
+      setTimeout(() => {
+        this.service.updateCharacteristic(
+          this.accessory.platform.Characteristic.RotationSpeed,
+          this.varMin,
+        );
+      }, 50);
+    }
 
     // Debounce rapid slider changes (300ms)
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
