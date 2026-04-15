@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.2
+
+### Documentation
+
+- Update README with release process, AI agent guidelines, correct git clone URL, and lint command
+
 ## v0.3.1
 
 ### Bug Fixes

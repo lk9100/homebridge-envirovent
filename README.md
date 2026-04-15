@@ -78,13 +78,14 @@ The protocol was reverse-engineered from the official myenvirovent Android app a
 ## Development
 
 ```bash
-git clone https://github.com/your-username/homebridge-envirovent.git
+git clone https://github.com/lk9100/homebridge-envirovent.git
 cd homebridge-envirovent
 nvm use
 npm install
-npm test          # Run tests (83 tests)
+npm test          # Run tests
 npm run build     # Compile TypeScript
 npm run typecheck # Type check without emitting
+npm run lint      # Lint with ESLint
 ```
 
 ### Project structure
@@ -117,6 +118,34 @@ The `api/` and `state/` layers have no Homebridge dependencies and can be used a
 # Read-only: fetch and display unit settings
 npx tsx scripts/test-unit.ts 192.168.1.160
 ```
+
+## Releasing a new version
+
+This project uses [conventional commits](https://www.conventionalcommits.org/) (`fix:`, `feat:`, `refactor:`, etc.) which keep the changelog consistent.
+
+### Steps
+
+1. **Bump version** in `package.json`
+2. **Update `CHANGELOG.md`** — add a new `## vX.Y.Z` section at the top with the changes since the last release
+3. **Commit** — `git commit -m "chore: bump version to X.Y.Z"`
+4. **Tag** — `git tag vX.Y.Z`
+5. **Push** — `git push && git push --tags`
+6. **Create GitHub Release** — `gh release create vX.Y.Z --title "vX.Y.Z" --notes "release notes here"` (the Homebridge UI reads this for its Release Notes tab)
+7. **Publish to npm** — `npm publish`
+
+### Verifying the npm package
+
+Before publishing, always check what will be included in the tarball:
+
+```bash
+npm pack --dry-run
+```
+
+The published package should be ~120 KB. If it's significantly larger, something is leaking through `.npmignore`.
+
+## AI agent guidelines
+
+If you are an AI agent working on this project, keep this README up to date as you make changes. This includes updating the project structure tree, test commands, release steps, and any other sections affected by your work. This file is the single source of truth for contributors.
 
 ## Acknowledgements
 
