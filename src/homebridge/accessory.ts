@@ -1,91 +1,95 @@
 import type { PlatformAccessory } from 'homebridge';
 import type { EnviroventPlatform } from './platform.js';
-import { EnviroventClient } from '../api/client.js';
+import type { EnviroventClient } from '../api/client.js';
+import type { CommandQueue } from '../state/command-queue.js';
+import type { UnitState } from '../state/unit-state.js';
+import { createEnviroventClient } from '../api/client.js';
 import { DEFAULTS } from '../api/types.js';
-import { CommandQueue } from '../state/command-queue.js';
-import { UnitState } from '../state/unit-state.js';
-import { FanService } from './services/fan.js';
-import { BoostService } from './services/boost.js';
-import { FilterService } from './services/filter.js';
+import { createCommandQueue } from '../state/command-queue.js';
+import { createUnitState } from '../state/unit-state.js';
+import { createFanService } from './services/fan.js';
+import { createBoostService } from './services/boost.js';
+import { createFilterService } from './services/filter.js';
+
+/** Shape shared between the accessory and all service factories. */
+export interface EnviroventAccessoryContext {
+  platform: EnviroventPlatform;
+  accessory: PlatformAccessory;
+  client: EnviroventClient;
+  commandQueue: CommandQueue;
+  unitState: UnitState;
+}
 
 const MIN_POLL_INTERVAL = 5;
 
-export class EnviroventAccessory {
-  public readonly client: EnviroventClient;
-  public readonly commandQueue: CommandQueue;
-  public readonly unitState: UnitState;
+export const createEnviroventAccessory = (
+  platform: EnviroventPlatform,
+  accessory: PlatformAccessory,
+): EnviroventAccessoryContext => {
+  const host = accessory.context.host as string;
+  const port = (accessory.context.port as number) ?? DEFAULTS.PORT;
 
-  private pollTimer?: ReturnType<typeof setInterval>;
-  private readonly services: { update(): void }[] = [];
+  const client = createEnviroventClient({ host, port });
+  const commandQueue = createCommandQueue({ retries: 1, retryDelay: 1000 });
+  const unitState = createUnitState(client, { failureThreshold: 3 });
 
-  constructor(
-    public readonly platform: EnviroventPlatform,
-    public readonly accessory: PlatformAccessory,
-  ) {
-    const host = accessory.context.host as string;
-    const port = (accessory.context.port as number) ?? DEFAULTS.PORT;
+  const ctx: EnviroventAccessoryContext = { platform, accessory, client, commandQueue, unitState };
 
-    this.client = new EnviroventClient({ host, port });
-    this.commandQueue = new CommandQueue({ retries: 1, retryDelay: 1000 });
-    this.unitState = new UnitState(this.client, { failureThreshold: 3 });
-
-    // ─── Accessory information ─────────────────────────────────
-    const infoService = this.accessory.getService(this.platform.Service.AccessoryInformation);
-    if (infoService) {
-      infoService
-        .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Envirovent')
-        .setCharacteristic(this.platform.Characteristic.Model, 'Atmos PIV')
-        .setCharacteristic(this.platform.Characteristic.SerialNumber, `${host}:${port}`);
-    }
-
-    // ─── Register services ─────────────────────────────────────
-    this.services.push(new FanService(this));
-    this.services.push(new FilterService(this));
-
-    const showBoost = this.platform.config.showBoostSwitch ?? true;
-    if (showBoost) {
-      this.services.push(new BoostService(this));
-    }
-
-    // ─── State event handlers ──────────────────────────────────
-    this.unitState.on('stateChanged', () => {
-      for (const service of this.services) {
-        service.update();
-      }
-    });
-
-    this.unitState.on('connectionLost', () => {
-      this.platform.log.warn(`Lost connection to unit at ${host}:${port}`);
-    });
-
-    this.unitState.on('connectionRestored', () => {
-      this.platform.log.info(`Connection restored to unit at ${host}:${port}`);
-    });
-
-    this.unitState.on('pollError', (err: Error) => {
-      this.platform.log.debug(`Poll error: ${err.message}`);
-    });
-
-    // ─── Start polling ─────────────────────────────────────────
-    this.startPolling();
+  // ─── Accessory information ─────────────────────────────────
+  const infoService = accessory.getService(platform.Service.AccessoryInformation);
+  if (infoService) {
+    infoService
+      .setCharacteristic(platform.Characteristic.Manufacturer, 'Envirovent')
+      .setCharacteristic(platform.Characteristic.Model, 'Atmos PIV')
+      .setCharacteristic(platform.Characteristic.SerialNumber, `${host}:${port}`);
   }
 
-  private startPolling(): void {
-    const configInterval = this.platform.config.pollInterval ?? MIN_POLL_INTERVAL;
-    const intervalSec = Math.max(configInterval, MIN_POLL_INTERVAL);
-    const intervalMs = intervalSec * 1000;
+  // ─── Register services ─────────────────────────────────────
+  const services: { update(): void }[] = [];
+  services.push(createFanService(ctx));
+  services.push(createFilterService(ctx));
 
-    this.platform.log.info(`Polling unit every ${intervalSec}s`);
-
-    // Initial poll
-    this.unitState.poll().catch((err) => {
-      this.platform.log.error('Initial poll failed:', err);
-    });
-
-    this.pollTimer = setInterval(() => {
-      this.unitState.poll().catch((err) => {
-        this.platform.log.debug('Poll failed:', err);
-      });
-    }, intervalMs);
+  const showBoost = platform.config.showBoostSwitch ?? true;
+  if (showBoost) {
+    services.push(createBoostService(ctx));
   }
-}
+
+  // ─── State event handlers ──────────────────────────────────
+  unitState.on('stateChanged', () => {
+    for (const service of services) {
+      service.update();
+    }
+  });
+
+  unitState.on('connectionLost', () => {
+    platform.log.warn(`Lost connection to unit at ${host}:${port}`);
+  });
+
+  unitState.on('connectionRestored', () => {
+    platform.log.info(`Connection restored to unit at ${host}:${port}`);
+  });
+
+  unitState.on('pollError', (err: Error) => {
+    platform.log.debug(`Poll error: ${err.message}`);
+  });
+
+  // ─── Start polling ─────────────────────────────────────────
+  const configInterval = platform.config.pollInterval ?? MIN_POLL_INTERVAL;
+  const intervalSec = Math.max(configInterval, MIN_POLL_INTERVAL);
+  const intervalMs = intervalSec * 1000;
+
+  platform.log.info(`Polling unit every ${intervalSec}s`);
+
+  // Initial poll
+  unitState.poll().catch((err) => {
+    platform.log.error('Initial poll failed:', err);
+  });
+
+  setInterval(() => {
+    unitState.poll().catch((err) => {
+      platform.log.debug('Poll failed:', err);
+    });
+  }, intervalMs);
+
+  return ctx;
+};

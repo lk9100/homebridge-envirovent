@@ -1,6 +1,6 @@
 import * as net from 'node:net';
 import { describe, it, expect, afterEach } from 'vitest';
-import { EnviroventClient } from '../../src/api/client.js';
+import { createEnviroventClient } from '../../src/api/client.js';
 import { CommandError, ConnectionError } from '../../src/api/errors.js';
 import { pivSettingsResponse, createMockUnit, closeTcpServer } from '../fixtures.js';
 
@@ -21,7 +21,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.getSettings();
 
     expect(result.success).toBe(true);
@@ -39,7 +39,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.setBoost(true);
     expect(result.success).toBe(true);
   });
@@ -51,7 +51,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.getStatus();
     expect(result.success).toBe(true);
   });
@@ -62,12 +62,12 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     await expect(client.getStatus()).rejects.toThrow(CommandError);
   });
 
   it('throws ConnectionError when unit is unreachable', async () => {
-    const client = new EnviroventClient({ host: '127.0.0.1', port: 19999, timeout: 1000 });
+    const client = createEnviroventClient({ host: '127.0.0.1', port: 19999, timeout: 1000 });
     await expect(client.getSettings()).rejects.toThrow(ConnectionError);
   });
 
@@ -79,7 +79,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
 
     // Fire 3 commands concurrently
     await Promise.all([
@@ -103,7 +103,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     await client.setHomeSettings({
       airflow: { mode: 'VAR', value: 60 },
       heater: { autoActive: true },
@@ -124,7 +124,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.filterMaintenanceComplete();
     expect(result.success).toBe(true);
   });
@@ -137,7 +137,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.setSummerBypass(true);
     expect(result.success).toBe(true);
   });
@@ -150,7 +150,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     await client.setInstallerSettings({
       airflow: { mode: 'SET', value: 3 },
       heater: { autoActive: true, temperature: 10 },
@@ -170,7 +170,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.setSpigotType(2);
     expect(result.success).toBe(true);
   });
@@ -182,7 +182,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.restoreHomeDefaults();
     expect(result.success).toBe(true);
   });
@@ -194,7 +194,7 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.restoreInstallerDefaults();
     expect(result.success).toBe(true);
   });
@@ -206,18 +206,18 @@ describe('EnviroventClient', () => {
     });
     testServer = server;
 
-    const client = new EnviroventClient({ host: '127.0.0.1', port });
+    const client = createEnviroventClient({ host: '127.0.0.1', port });
     const result = await client.restoreCommissioningDefaults();
     expect(result.success).toBe(true);
   });
 
   it('uses default port 1337', () => {
-    const client = new EnviroventClient({ host: '192.168.1.100' });
+    const client = createEnviroventClient({ host: '192.168.1.100' });
     expect(client.port).toBe(1337);
   });
 
   it('uses custom port and timeout', () => {
-    const client = new EnviroventClient({ host: '192.168.1.100', port: 9999, timeout: 5000 });
+    const client = createEnviroventClient({ host: '192.168.1.100', port: 9999, timeout: 5000 });
     expect(client.port).toBe(9999);
     expect(client.timeout).toBe(5000);
   });

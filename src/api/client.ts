@@ -32,85 +32,85 @@ import {
   type SpigotType,
 } from './types.js';
 
-export class EnviroventClient {
-  readonly host: string;
-  readonly port: number;
-  readonly timeout: number;
+export const createEnviroventClient = (config: EnviroventClientConfig) => {
+  const host = config.host;
+  const port = config.port ?? DEFAULTS.PORT;
+  const timeout = config.timeout ?? DEFAULTS.TIMEOUT;
 
-  private mutex: Promise<void> = Promise.resolve();
-
-  constructor(config: EnviroventClientConfig) {
-    this.host = config.host;
-    this.port = config.port ?? DEFAULTS.PORT;
-    this.timeout = config.timeout ?? DEFAULTS.TIMEOUT;
-  }
-
-  // ─── Read commands ──────────────────────────────────────────────
-
-  async getSettings(): Promise<GetCurrentSettingsResponse> {
-    return this.execute(buildGetCurrentSettings(), parseGetCurrentSettings);
-  }
-
-  async getStatus(): Promise<CommandResponse> {
-    return this.execute(buildGetStatus(), parseCommandResponse);
-  }
-
-  // ─── Write commands ─────────────────────────────────────────────
-
-  async setBoost(enabled: boolean): Promise<CommandResponse> {
-    return this.execute(buildSetBoost(enabled), parseCommandResponse);
-  }
-
-  async setSummerBypass(enabled: boolean): Promise<CommandResponse> {
-    return this.execute(buildSetSummerBypass(enabled), parseCommandResponse);
-  }
-
-  async setHomeSettings(params: SetHomeSettingsParams): Promise<CommandResponse> {
-    return this.execute(buildSetHomeSettings(params), parseCommandResponse);
-  }
-
-  async setInstallerSettings(params: SetInstallerSettingsParams): Promise<CommandResponse> {
-    return this.execute(buildSetInstallerSettings(params), parseCommandResponse);
-  }
-
-  async setSpigotType(type: SpigotType): Promise<CommandResponse> {
-    return this.execute(buildSetSpigotType(type), parseCommandResponse);
-  }
-
-  async filterMaintenanceComplete(): Promise<CommandResponse> {
-    return this.execute(buildFilterMaintenanceComplete(), parseCommandResponse);
-  }
-
-  async restoreHomeDefaults(): Promise<CommandResponse> {
-    return this.execute(buildRestoreHomeDefaults(), parseCommandResponse);
-  }
-
-  async restoreInstallerDefaults(): Promise<CommandResponse> {
-    return this.execute(buildRestoreInstallerDefaults(), parseCommandResponse);
-  }
-
-  async restoreCommissioningDefaults(): Promise<CommandResponse> {
-    return this.execute(buildRestoreCommissioningDefaults(), parseCommandResponse);
-  }
-
-  // ─── Internal ───────────────────────────────────────────────────
+  let mutex: Promise<void> = Promise.resolve();
 
   /**
    * Execute a command with mutex serialization.
    * Only one command runs at a time — subsequent calls queue behind the current one.
    */
-  private execute<T>(payload: string, parser: (raw: string) => T): Promise<T> {
-    const previous = this.mutex;
+  const execute = <T>(payload: string, parser: (raw: string) => T): Promise<T> => {
+    const previous = mutex;
     let release: () => void;
-    this.mutex = new Promise<void>((resolve) => { release = resolve; });
+    mutex = new Promise<void>((resolve) => { release = resolve; });
 
     return previous.then(async () => {
       try {
-        const raw = await sendCommand(this.host, this.port, payload, this.timeout);
+        const raw = await sendCommand(host, port, payload, timeout);
         return parser(raw);
       } finally {
         release!();
       }
     });
-  }
-}
+  };
+
+  // ─── Read commands ──────────────────────────────────────────────
+
+  const getSettings = (): Promise<GetCurrentSettingsResponse> =>
+    execute(buildGetCurrentSettings(), parseGetCurrentSettings);
+
+  const getStatus = (): Promise<CommandResponse> =>
+    execute(buildGetStatus(), parseCommandResponse);
+
+  // ─── Write commands ─────────────────────────────────────────────
+
+  const setBoost = (enabled: boolean): Promise<CommandResponse> =>
+    execute(buildSetBoost(enabled), parseCommandResponse);
+
+  const setSummerBypass = (enabled: boolean): Promise<CommandResponse> =>
+    execute(buildSetSummerBypass(enabled), parseCommandResponse);
+
+  const setHomeSettings = (params: SetHomeSettingsParams): Promise<CommandResponse> =>
+    execute(buildSetHomeSettings(params), parseCommandResponse);
+
+  const setInstallerSettings = (params: SetInstallerSettingsParams): Promise<CommandResponse> =>
+    execute(buildSetInstallerSettings(params), parseCommandResponse);
+
+  const setSpigotType = (type: SpigotType): Promise<CommandResponse> =>
+    execute(buildSetSpigotType(type), parseCommandResponse);
+
+  const filterMaintenanceComplete = (): Promise<CommandResponse> =>
+    execute(buildFilterMaintenanceComplete(), parseCommandResponse);
+
+  const restoreHomeDefaults = (): Promise<CommandResponse> =>
+    execute(buildRestoreHomeDefaults(), parseCommandResponse);
+
+  const restoreInstallerDefaults = (): Promise<CommandResponse> =>
+    execute(buildRestoreInstallerDefaults(), parseCommandResponse);
+
+  const restoreCommissioningDefaults = (): Promise<CommandResponse> =>
+    execute(buildRestoreCommissioningDefaults(), parseCommandResponse);
+
+  return {
+    host,
+    port,
+    timeout,
+    getSettings,
+    getStatus,
+    setBoost,
+    setSummerBypass,
+    setHomeSettings,
+    setInstallerSettings,
+    setSpigotType,
+    filterMaintenanceComplete,
+    restoreHomeDefaults,
+    restoreInstallerDefaults,
+    restoreCommissioningDefaults,
+  };
+};
+
+export type EnviroventClient = ReturnType<typeof createEnviroventClient>;

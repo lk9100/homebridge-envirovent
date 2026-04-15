@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { UnitState } from '../../src/state/unit-state.js';
+import { createUnitState } from '../../src/state/unit-state.js';
 import type { EnviroventClient } from '../../src/api/client.js';
 import type { PivSettings, GetCurrentSettingsResponse, AirflowMode, SpigotType } from '../../src/api/types.js';
 
@@ -28,13 +28,20 @@ const createMockClient = (getSettingsImpl?: () => Promise<GetCurrentSettingsResp
 
 describe('UnitState', () => {
   it('starts with null settings and disconnected', () => {
-    const state = new UnitState(createMockClient());
+    const state = createUnitState(createMockClient());
     expect(state.settings).toBeNull();
     expect(state.connected).toBe(false);
   });
 
+  it('starts connected with initialSettings when provided', () => {
+    const settings = createMockSettings();
+    const state = createUnitState(createMockClient(), { initialSettings: settings });
+    expect(state.settings).not.toBeNull();
+    expect(state.connected).toBe(true);
+  });
+
   it('poll updates settings and marks as connected', async () => {
-    const state = new UnitState(createMockClient());
+    const state = createUnitState(createMockClient());
     const settings = await state.poll();
 
     expect(settings).not.toBeNull();
@@ -43,7 +50,7 @@ describe('UnitState', () => {
   });
 
   it('emits stateChanged on first successful poll', async () => {
-    const state = new UnitState(createMockClient());
+    const state = createUnitState(createMockClient());
     const handler = vi.fn();
     state.on('stateChanged', handler);
 
@@ -52,7 +59,7 @@ describe('UnitState', () => {
   });
 
   it('emits connectionRestored when reconnecting', async () => {
-    const state = new UnitState(createMockClient());
+    const state = createUnitState(createMockClient());
     const handler = vi.fn();
     state.on('connectionRestored', handler);
 
@@ -61,7 +68,7 @@ describe('UnitState', () => {
   });
 
   it('does not emit stateChanged when settings are unchanged', async () => {
-    const state = new UnitState(createMockClient());
+    const state = createUnitState(createMockClient());
     const handler = vi.fn();
 
     await state.poll(); // First poll
@@ -84,7 +91,7 @@ describe('UnitState', () => {
       };
     });
 
-    const state = new UnitState(client);
+    const state = createUnitState(client);
     const handler = vi.fn();
 
     await state.poll();
@@ -95,34 +102,26 @@ describe('UnitState', () => {
   });
 
   it('emits connectionLost after threshold failures', async () => {
-    const client = createMockClient(async () => {
-      throw new Error('connection refused');
-    });
-
-    const _state = new UnitState(client, { failureThreshold: 2 });
-    // First poll to establish "connected" would fail, but we need to simulate
-    // being connected first. Let's do a successful poll then switch to failing.
-
     let shouldFail = false;
     const switchableClient = createMockClient(async () => {
       if (shouldFail) throw new Error('connection refused');
       return { success: true as const, unitType: 'piv', settings: createMockSettings() };
     });
 
-    const state2 = new UnitState(switchableClient, { failureThreshold: 2 });
-    await state2.poll(); // Connected
+    const state = createUnitState(switchableClient, { failureThreshold: 2 });
+    await state.poll(); // Connected
 
     shouldFail = true;
     const lostHandler = vi.fn();
-    state2.on('connectionLost', lostHandler);
+    state.on('connectionLost', lostHandler);
 
-    await state2.poll(); // Failure 1
+    await state.poll(); // Failure 1
     expect(lostHandler).not.toHaveBeenCalled();
-    expect(state2.connected).toBe(true);
+    expect(state.connected).toBe(true);
 
-    await state2.poll(); // Failure 2 — threshold reached
+    await state.poll(); // Failure 2 — threshold reached
     expect(lostHandler).toHaveBeenCalledTimes(1);
-    expect(state2.connected).toBe(false);
+    expect(state.connected).toBe(false);
   });
 
   it('emits connectionRestored after reconnecting', async () => {
@@ -132,7 +131,7 @@ describe('UnitState', () => {
       return { success: true as const, unitType: 'piv', settings: createMockSettings() };
     });
 
-    const state = new UnitState(client, { failureThreshold: 1 });
+    const state = createUnitState(client, { failureThreshold: 1 });
     const restoredHandler = vi.fn();
     state.on('connectionRestored', restoredHandler);
 
@@ -158,7 +157,7 @@ describe('UnitState', () => {
       throw new Error('fail');
     });
 
-    const state = new UnitState(client, { failureThreshold: 5 });
+    const state = createUnitState(client, { failureThreshold: 5 });
     await state.poll();
     expect(state.consecutiveFailures).toBe(1);
     await state.poll();
@@ -172,7 +171,7 @@ describe('UnitState', () => {
       return { success: true as const, unitType: 'piv', settings: createMockSettings() };
     });
 
-    const state = new UnitState(client, { failureThreshold: 10 });
+    const state = createUnitState(client, { failureThreshold: 10 });
     await state.poll(); // Fail
     await state.poll(); // Fail
     expect(state.consecutiveFailures).toBe(2);
@@ -183,7 +182,7 @@ describe('UnitState', () => {
   });
 
   it('applyOptimistic patches settings and emits stateChanged', async () => {
-    const state = new UnitState(createMockClient());
+    const state = createUnitState(createMockClient());
     await state.poll(); // Get initial settings
 
     const handler = vi.fn();
@@ -198,7 +197,7 @@ describe('UnitState', () => {
   });
 
   it('applyOptimistic is a no-op when no settings exist', () => {
-    const state = new UnitState(createMockClient());
+    const state = createUnitState(createMockClient());
     const handler = vi.fn();
     state.on('stateChanged', handler);
 
@@ -214,7 +213,7 @@ describe('UnitState', () => {
       return { success: true as const, unitType: 'piv', settings: createMockSettings() };
     });
 
-    const state = new UnitState(client, { failureThreshold: 10 });
+    const state = createUnitState(client, { failureThreshold: 10 });
     await state.poll(); // Success — cache settings
 
     shouldFail = true;
@@ -231,7 +230,7 @@ describe('UnitState', () => {
       settings: createMockSettings({ airflow: { mode: 'VAR', value: airflowValue, active: true } }),
     }));
 
-    const state = new UnitState(client);
+    const state = createUnitState(client);
     await state.poll(); // Initial: value=50
     expect(state.settings!.airflow.value).toBe(50);
 
@@ -239,9 +238,7 @@ describe('UnitState', () => {
     state.applyOptimistic({ airflow: { mode: 'VAR', value: 24, active: true } });
     expect(state.settings!.airflow.value).toBe(24);
 
-    // A stale poll arrives (unit still reports 50 because our TCP command
-    // hasn't reached it yet). Without the grace period, this would overwrite
-    // our optimistic 24 back to 50, causing the UI to snap to the old value.
+    // A stale poll arrives — without the grace period, this would overwrite 24 back to 50
     const staleResult = await state.poll();
     expect(staleResult!.airflow.value).toBe(24); // Optimistic state preserved
     expect(state.settings!.airflow.value).toBe(24); // NOT 50
@@ -261,7 +258,7 @@ describe('UnitState', () => {
       settings: createMockSettings({ airflow: { mode: 'VAR', value: airflowValue, active: true } }),
     }));
 
-    const state = new UnitState(client);
+    const state = createUnitState(client);
     await state.poll(); // Initial: value=50
 
     state.applyOptimistic({ airflow: { mode: 'VAR', value: 24, active: true } });
@@ -271,7 +268,6 @@ describe('UnitState', () => {
     await state.poll();
 
     // Grace period should be cleared, normal polling resumes
-    // Simulate the unit changing to something else (e.g. physical control)
     airflowValue = 60;
     const handler = vi.fn();
     state.on('stateChanged', handler);
@@ -287,7 +283,7 @@ describe('UnitState', () => {
       settings: undefined as unknown as PivSettings,
     }));
 
-    const state = new UnitState(client, { failureThreshold: 10 });
+    const state = createUnitState(client, { failureThreshold: 10 });
     await state.poll();
     expect(state.consecutiveFailures).toBe(1);
     expect(state.settings).toBeNull();
@@ -307,7 +303,7 @@ describe('UnitState — settingsEqual detects all field changes', () => {
       }),
     }));
 
-    const state = new UnitState(client);
+    const state = createUnitState(client);
     await state.poll();
 
     spigotType = 2;
@@ -329,7 +325,7 @@ describe('UnitState — settingsEqual detects all field changes', () => {
       }),
     }));
 
-    const state = new UnitState(client);
+    const state = createUnitState(client);
     await state.poll();
 
     kickUpActive = true;
@@ -351,7 +347,7 @@ describe('UnitState — settingsEqual detects all field changes', () => {
       }),
     }));
 
-    const state = new UnitState(client);
+    const state = createUnitState(client);
     await state.poll();
 
     boostInputEnabled = true;

@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { CommandQueue } from '../../src/state/command-queue.js';
+import { createCommandQueue } from '../../src/state/command-queue.js';
 
 describe('CommandQueue', () => {
   it('executes a single operation', async () => {
-    const queue = new CommandQueue();
+    const queue = createCommandQueue();
     const result = await queue.enqueue(() => Promise.resolve(42));
     expect(result).toBe(42);
   });
 
   it('serializes operations in order', async () => {
-    const queue = new CommandQueue();
+    const queue = createCommandQueue();
     const order: number[] = [];
 
     const p1 = queue.enqueue(async () => {
@@ -32,7 +32,7 @@ describe('CommandQueue', () => {
   });
 
   it('retries failed operations', async () => {
-    const queue = new CommandQueue({ retries: 2, retryDelay: 10 });
+    const queue = createCommandQueue({ retries: 2, retryDelay: 10 });
     let attempts = 0;
 
     const result = await queue.enqueue(async () => {
@@ -46,7 +46,7 @@ describe('CommandQueue', () => {
   });
 
   it('throws after exhausting retries', async () => {
-    const queue = new CommandQueue({ retries: 1, retryDelay: 10 });
+    const queue = createCommandQueue({ retries: 1, retryDelay: 10 });
 
     await expect(
       queue.enqueue(() => Promise.reject(new Error('permanent'))),
@@ -54,7 +54,7 @@ describe('CommandQueue', () => {
   });
 
   it('continues processing after a failed operation', async () => {
-    const queue = new CommandQueue({ retries: 0 });
+    const queue = createCommandQueue({ retries: 0 });
 
     // First operation fails
     await expect(
@@ -67,7 +67,7 @@ describe('CommandQueue', () => {
   });
 
   it('does not retry when retries is 0', async () => {
-    const queue = new CommandQueue({ retries: 0 });
+    const queue = createCommandQueue({ retries: 0 });
     let attempts = 0;
 
     await expect(

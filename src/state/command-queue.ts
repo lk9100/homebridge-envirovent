@@ -12,43 +12,41 @@ export interface CommandQueueOptions {
   retryDelay?: number;
 }
 
-export class CommandQueue {
-  private readonly retries: number;
-  private readonly retryDelay: number;
-  private queue: Promise<void> = Promise.resolve();
+export const createCommandQueue = (options: CommandQueueOptions = {}) => {
+  const retries = options.retries ?? 1;
+  const retryDelay = options.retryDelay ?? 1000;
+  let queue: Promise<void> = Promise.resolve();
 
-  constructor(options: CommandQueueOptions = {}) {
-    this.retries = options.retries ?? 1;
-    this.retryDelay = options.retryDelay ?? 1000;
-  }
+  const delay = (ms: number): Promise<void> =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+  const withRetry = async <T>(operation: () => Promise<T>): Promise<T> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await operation();
+      } catch (err) {
+        lastError = err;
+        if (attempt < retries) {
+          await delay(retryDelay);
+        }
+      }
+    }
+    throw lastError;
+  };
 
   /**
    * Enqueue an async operation. It will wait for all previously enqueued
    * operations to complete before executing. Retries on failure.
    */
-  enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.queue.then(() => this.withRetry(operation));
+  const enqueue = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = queue.then(() => withRetry(operation));
     // Update the queue chain — swallow errors so the queue doesn't stall
-    this.queue = result.then(() => {}, () => {});
+    queue = result.then(() => {}, () => {});
     return result;
-  }
+  };
 
-  private async withRetry<T>(operation: () => Promise<T>): Promise<T> {
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= this.retries; attempt++) {
-      try {
-        return await operation();
-      } catch (err) {
-        lastError = err;
-        if (attempt < this.retries) {
-          await this.delay(this.retryDelay);
-        }
-      }
-    }
-    throw lastError;
-  }
+  return { enqueue };
+};
 
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-}
+export type CommandQueue = ReturnType<typeof createCommandQueue>;

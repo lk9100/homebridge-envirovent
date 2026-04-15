@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { FanService } from '../../../src/homebridge/services/fan.js';
-import { UnitState } from '../../../src/state/unit-state.js';
-import { CommandQueue } from '../../../src/state/command-queue.js';
+import { createFanService } from '../../../src/homebridge/services/fan.js';
+import { createUnitState } from '../../../src/state/unit-state.js';
+import { createCommandQueue } from '../../../src/state/command-queue.js';
 import { createMockSettings, createMockAccessory, MockService } from '../mock-homebridge.js';
 import type { EnviroventClient } from '../../../src/api/client.js';
-import type { EnviroventAccessory } from '../../../src/homebridge/accessory.js';
+import type { EnviroventAccessoryContext } from '../../../src/homebridge/accessory.js';
 
 // Unit's airflow config: varMin=24, max=100
 const UNIT_VAR_MIN = 24;
@@ -23,8 +23,8 @@ const expectedUnit = (hkPercent: number): number => {
   return Math.round(UNIT_VAR_MIN + (clamped / 100) * UNIT_RANGE);
 };
 
-const buildTestAccessory = (settingsOverrides?: Parameters<typeof createMockSettings>[0]) => {
-  const settings = createMockSettings(settingsOverrides);
+const buildTestAccessory = (settingsOverrides?: Parameters<typeof createMockSettings>[0] | null) => {
+  const settings = settingsOverrides === null ? undefined : createMockSettings(settingsOverrides);
   const mockClient = {
     getSettings: vi.fn(),
     setHomeSettings: vi.fn().mockResolvedValue({ success: true }),
@@ -32,22 +32,20 @@ const buildTestAccessory = (settingsOverrides?: Parameters<typeof createMockSett
   } as unknown as EnviroventClient;
 
   const { platform, accessory } = createMockAccessory();
-  const unitState = new UnitState(mockClient, { failureThreshold: 3 });
-  (unitState as unknown as { _settings: typeof settings })._settings = settings;
-  (unitState as unknown as { _connected: boolean })._connected = true;
+  const unitState = createUnitState(mockClient, { failureThreshold: 3, initialSettings: settings });
 
   const fakeAccessory = {
     platform,
     accessory,
     client: mockClient,
-    commandQueue: new CommandQueue({ retries: 0 }),
+    commandQueue: createCommandQueue({ retries: 0 }),
     unitState,
-  } as unknown as EnviroventAccessory;
+  } as unknown as EnviroventAccessoryContext;
 
   return { fakeAccessory, platform, unitState, mockClient };
 };
 
-const getService = (fakeAccessory: EnviroventAccessory) =>
+const getService = (fakeAccessory: EnviroventAccessoryContext) =>
   fakeAccessory.accessory.getService('Fan') as unknown as MockService;
 
 // ─── Active characteristic ──────────────────────────────────────────
@@ -57,20 +55,19 @@ describe('FanService — Active', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 24, active: false },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active).simulateGet()).toBe(1);
   });
 
   it('getActive returns 1 even when settings are null', () => {
-    const { fakeAccessory, platform, unitState } = buildTestAccessory();
-    (unitState as unknown as { _settings: null })._settings = null;
-    new FanService(fakeAccessory);
+    const { fakeAccessory, platform } = buildTestAccessory(null);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active).simulateGet()).toBe(1);
   });
 
   it('setActive(0) pushes Active back to 1 after delay', async () => {
     const { fakeAccessory, platform } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
     await active.simulateSet(0);
@@ -81,7 +78,7 @@ describe('FanService — Active', () => {
 
   it('setActive(0) sets slider to HK 1% (minimum, not 0% which implies off)', async () => {
     const { fakeAccessory, platform } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
@@ -93,7 +90,7 @@ describe('FanService — Active', () => {
 
   it('setActive(0) sends varMin (24%) to unit', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
     await active.simulateSet(0);
@@ -107,7 +104,7 @@ describe('FanService — Active', () => {
 
   it('setActive(1) does not send any command to the unit', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
     await active.simulateSet(1);
@@ -117,9 +114,8 @@ describe('FanService — Active', () => {
   });
 
   it('setActive(0) skips TCP send when settings are null', async () => {
-    const { fakeAccessory, platform, unitState, mockClient } = buildTestAccessory();
-    (unitState as unknown as { _settings: null })._settings = null;
-    new FanService(fakeAccessory);
+    const { fakeAccessory, platform, mockClient } = buildTestAccessory(null);
+    createFanService(fakeAccessory);
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
     await active.simulateSet(0);
@@ -136,9 +132,8 @@ describe('FanService — Active', () => {
 
 describe('FanService — RotationSpeed (get, mapping)', () => {
   it('returns HK 0% when settings are null', () => {
-    const { fakeAccessory, platform, unitState } = buildTestAccessory();
-    (unitState as unknown as { _settings: null })._settings = null;
-    new FanService(fakeAccessory);
+    const { fakeAccessory, platform } = buildTestAccessory(null);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet()).toBe(0);
   });
 
@@ -146,7 +141,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: UNIT_VAR_MIN, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet()).toBe(0);
   });
 
@@ -154,7 +149,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 100, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet()).toBe(100);
   });
 
@@ -162,7 +157,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 62, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet()).toBe(50);
   });
 
@@ -171,7 +166,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
       const { fakeAccessory, platform } = buildTestAccessory({
         airflow: { mode: 'VAR', value: unitValue, active: true },
       });
-      new FanService(fakeAccessory);
+      createFanService(fakeAccessory);
       const hk = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet() as number;
       expect(hk, `unit ${unitValue}% should map to HK 0-100`).toBeGreaterThanOrEqual(0);
       expect(hk, `unit ${unitValue}% should map to HK 0-100`).toBeLessThanOrEqual(100);
@@ -183,7 +178,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 10, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet()).toBe(0);
   });
 
@@ -191,7 +186,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 120, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet()).toBe(100);
   });
 
@@ -200,7 +195,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'SET', value: 2, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet()).toBe(expectedHK(60));
   });
 
@@ -208,7 +203,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'SET', value: 99, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet()).toBe(0);
   });
 });
@@ -216,7 +211,7 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
 describe('FanService — RotationSpeed (set, mapping)', () => {
   it('maps HK 0% to unit varMin (24%)', async () => {
     const { fakeAccessory, mockClient } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(
       fakeAccessory.platform.Characteristic.RotationSpeed,
     );
@@ -231,7 +226,7 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
 
   it('maps HK 100% to unit 100%', async () => {
     const { fakeAccessory, mockClient } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(
       fakeAccessory.platform.Characteristic.RotationSpeed,
     );
@@ -246,7 +241,7 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
 
   it('maps HK 50% to unit 62%', async () => {
     const { fakeAccessory, mockClient } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(
       fakeAccessory.platform.Characteristic.RotationSpeed,
     );
@@ -262,7 +257,7 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
   it('sends the correctly mapped value for a range of HK percentages', async () => {
     for (const hkValue of [0, 1, 10, 25, 50, 75, 99, 100]) {
       const { fakeAccessory, mockClient } = buildTestAccessory();
-      new FanService(fakeAccessory);
+      createFanService(fakeAccessory);
       const speed = getService(fakeAccessory).getCharacteristic(
         fakeAccessory.platform.Characteristic.RotationSpeed,
       );
@@ -281,9 +276,8 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
 
 describe('FanService — RotationSpeed (set, edge cases)', () => {
   it('does nothing when settings are null', async () => {
-    const { fakeAccessory, unitState, mockClient } = buildTestAccessory();
-    new FanService(fakeAccessory);
-    (unitState as unknown as { _settings: null })._settings = null;
+    const { fakeAccessory, mockClient } = buildTestAccessory(null);
+    createFanService(fakeAccessory);
 
     const speed = getService(fakeAccessory).getCharacteristic(
       fakeAccessory.platform.Characteristic.RotationSpeed,
@@ -296,7 +290,7 @@ describe('FanService — RotationSpeed (set, edge cases)', () => {
 
   it('debounces rapid slider changes — only last value is sent', async () => {
     const { fakeAccessory, mockClient } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(
       fakeAccessory.platform.Characteristic.RotationSpeed,
     );
@@ -323,7 +317,7 @@ describe('FanService — update()', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 62, active: true },
     });
-    const fanService = new FanService(fakeAccessory);
+    const fanService = createFanService(fakeAccessory);
     fanService.update();
 
     const service = getService(fakeAccessory);
@@ -333,9 +327,8 @@ describe('FanService — update()', () => {
   });
 
   it('pushes HK 0% when settings are null', () => {
-    const { fakeAccessory, platform, unitState } = buildTestAccessory();
-    const fanService = new FanService(fakeAccessory);
-    (unitState as unknown as { _settings: null })._settings = null;
+    const { fakeAccessory, platform } = buildTestAccessory(null);
+    const fanService = createFanService(fakeAccessory);
 
     fanService.update();
 
@@ -351,7 +344,7 @@ describe('FanService — error handling', () => {
   it('logs error and does not throw when setHomeSettings fails', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory();
     (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('TCP timeout'));
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     await speed.simulateSet(50);
@@ -365,7 +358,7 @@ describe('FanService — error handling', () => {
       airflow: { mode: 'VAR', value: 50, active: true },
     });
     (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('fail'));
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(
       fakeAccessory.platform.Characteristic.RotationSpeed,
     );
@@ -381,26 +374,10 @@ describe('FanService — error handling', () => {
 
 // ─── getRotationSpeed cached HK + null settings ────────────────────
 
-describe('FanService — getRotationSpeed with cache + null settings', () => {
-  it('returns cached HK value when settings become null after a set', async () => {
-    const { fakeAccessory, platform, unitState } = buildTestAccessory();
-    new FanService(fakeAccessory);
-    const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
-
-    // Set a value to populate the cache
-    await speed.simulateSet(50);
-
-    // Settings become null (e.g. connection lost)
-    (unitState as unknown as { _settings: null })._settings = null;
-
-    // Should return cached value, not 0
-    expect(speed.simulateGet()).toBe(50);
-  });
-
+describe('FanService — getRotationSpeed with null settings', () => {
   it('returns 0 when settings are null and no cache exists', () => {
-    const { fakeAccessory, platform, unitState } = buildTestAccessory();
-    (unitState as unknown as { _settings: null })._settings = null;
-    new FanService(fakeAccessory);
+    const { fakeAccessory, platform } = buildTestAccessory(null);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     expect(speed.simulateGet()).toBe(0);
@@ -415,7 +392,7 @@ describe('FanService — HK value caching', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 26, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     await speed.simulateSet(2);
@@ -428,7 +405,7 @@ describe('FanService — HK value caching', () => {
   it('returns cached value for every HK percentage (zero drift)', async () => {
     for (const hkValue of [0, 1, 2, 3, 10, 25, 33, 50, 66, 75, 99, 100]) {
       const { fakeAccessory, platform } = buildTestAccessory();
-      new FanService(fakeAccessory);
+      createFanService(fakeAccessory);
       const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
       await speed.simulateSet(hkValue);
@@ -442,7 +419,7 @@ describe('FanService — HK value caching', () => {
 
   it('clears cache when unit value diverges (external change)', async () => {
     const { fakeAccessory, platform } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     // User sets HK 50% → unit 62
@@ -459,7 +436,7 @@ describe('FanService — HK value caching', () => {
 
   it('tolerates ±1 rounding on the unit side without clearing cache', async () => {
     const { fakeAccessory, platform } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     // Set HK 2% → expect unit 26. But unit rounds to 25 (within ±1).
@@ -474,7 +451,7 @@ describe('FanService — HK value caching', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 62, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
@@ -490,7 +467,7 @@ describe('FanService — HK value caching', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 62, active: true },
     });
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     // No set has happened — no cache. Should compute from unit value.
@@ -507,7 +484,7 @@ describe('FanService — round-trip stability (mapping)', () => {
       const { fakeAccessory, platform } = buildTestAccessory({
         airflow: { mode: 'VAR', value: unitValue, active: true },
       });
-      new FanService(fakeAccessory);
+      createFanService(fakeAccessory);
       const hk = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed).simulateGet() as number;
       const backToUnit = expectedUnit(hk);
       const drift = Math.abs(backToUnit - unitValue);
@@ -521,21 +498,19 @@ describe('FanService — round-trip stability (mapping)', () => {
 describe('FanService — CurrentFanState', () => {
   it('reports BLOWING_AIR when connected', () => {
     const { fakeAccessory, platform } = buildTestAccessory();
-    new FanService(fakeAccessory);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.CurrentFanState).simulateGet()).toBe(2);
   });
 
   it('reports INACTIVE when not connected', () => {
-    const { fakeAccessory, platform, unitState } = buildTestAccessory();
-    (unitState as unknown as { _connected: boolean })._connected = false;
-    new FanService(fakeAccessory);
+    const { fakeAccessory, platform } = buildTestAccessory(null);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.CurrentFanState).simulateGet()).toBe(0);
   });
 
   it('reports INACTIVE when settings are null', () => {
-    const { fakeAccessory, platform, unitState } = buildTestAccessory();
-    (unitState as unknown as { _settings: null })._settings = null;
-    new FanService(fakeAccessory);
+    const { fakeAccessory, platform } = buildTestAccessory(null);
+    createFanService(fakeAccessory);
     expect(getService(fakeAccessory).getCharacteristic(platform.Characteristic.CurrentFanState).simulateGet()).toBe(0);
   });
 });

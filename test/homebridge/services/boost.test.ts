@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { BoostService } from '../../../src/homebridge/services/boost.js';
-import { UnitState } from '../../../src/state/unit-state.js';
-import { CommandQueue } from '../../../src/state/command-queue.js';
+import { createBoostService } from '../../../src/homebridge/services/boost.js';
+import { createUnitState } from '../../../src/state/unit-state.js';
+import { createCommandQueue } from '../../../src/state/command-queue.js';
 import { createMockSettings, createMockAccessory, MockService } from '../mock-homebridge.js';
 import type { EnviroventClient } from '../../../src/api/client.js';
-import type { EnviroventAccessory } from '../../../src/homebridge/accessory.js';
+import type { EnviroventAccessoryContext } from '../../../src/homebridge/accessory.js';
 
 const buildTestAccessory = (boostEnabled = false) => {
   const settings = createMockSettings({
@@ -16,17 +16,15 @@ const buildTestAccessory = (boostEnabled = false) => {
   } as unknown as EnviroventClient;
 
   const { platform, accessory } = createMockAccessory();
-  const unitState = new UnitState(mockClient, { failureThreshold: 3 });
-  (unitState as unknown as { _settings: typeof settings })._settings = settings;
-  (unitState as unknown as { _connected: boolean })._connected = true;
+  const unitState = createUnitState(mockClient, { failureThreshold: 3, initialSettings: settings });
 
   const fakeAccessory = {
     platform,
     accessory,
     client: mockClient,
-    commandQueue: new CommandQueue({ retries: 0 }),
+    commandQueue: createCommandQueue({ retries: 0 }),
     unitState,
-  } as unknown as EnviroventAccessory;
+  } as unknown as EnviroventAccessoryContext;
 
   return { fakeAccessory, platform, mockClient };
 };
@@ -34,7 +32,7 @@ const buildTestAccessory = (boostEnabled = false) => {
 describe('BoostService', () => {
   it('reports On=false when boost is disabled', () => {
     const { fakeAccessory, platform } = buildTestAccessory(false);
-    const _boostService = new BoostService(fakeAccessory);
+    const _boostService = createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);
@@ -43,7 +41,7 @@ describe('BoostService', () => {
 
   it('reports On=true when boost is enabled', () => {
     const { fakeAccessory, platform } = buildTestAccessory(true);
-    const _boostService = new BoostService(fakeAccessory);
+    const _boostService = createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);
@@ -52,7 +50,7 @@ describe('BoostService', () => {
 
   it('calls setBoost(true) when turned on', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory(false);
-    const _boostService = new BoostService(fakeAccessory);
+    const _boostService = createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);
@@ -65,7 +63,7 @@ describe('BoostService', () => {
 
   it('calls setBoost(false) when turned off', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory(true);
-    const _boostService = new BoostService(fakeAccessory);
+    const _boostService = createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);
@@ -77,7 +75,7 @@ describe('BoostService', () => {
 
   it('update() pushes current boost state to characteristic', () => {
     const { fakeAccessory, platform } = buildTestAccessory(true);
-    const boostService = new BoostService(fakeAccessory);
+    const boostService = createBoostService(fakeAccessory);
 
     boostService.update();
 
@@ -89,7 +87,7 @@ describe('BoostService', () => {
   it('logs error and does not apply optimistic update when setBoost fails', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory(false);
     (mockClient.setBoost as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('TCP timeout'));
-    new BoostService(fakeAccessory);
+    createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);

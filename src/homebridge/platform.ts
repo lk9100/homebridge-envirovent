@@ -8,7 +8,7 @@ import type {
   Characteristic,
 } from 'homebridge';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
-import { EnviroventAccessory } from './accessory.js';
+import { createEnviroventAccessory, type EnviroventAccessoryContext } from './accessory.js';
 
 export interface EnviroventPlatformConfig extends PlatformConfig {
   host?: string;
@@ -26,7 +26,7 @@ export class EnviroventPlatform implements DynamicPlatformPlugin {
   public readonly Characteristic: typeof Characteristic;
 
   private readonly cachedAccessories: Map<string, PlatformAccessory> = new Map();
-  private readonly activeAccessories: Map<string, EnviroventAccessory> = new Map();
+  private readonly activeAccessories: Map<string, EnviroventAccessoryContext> = new Map();
 
   constructor(
     public readonly log: Logging,
@@ -75,7 +75,7 @@ export class EnviroventPlatform implements DynamicPlatformPlugin {
     accessory.context.host = host;
     accessory.context.port = port;
 
-    const enviroventAccessory = new EnviroventAccessory(this, accessory);
+    const enviroventAccessory = createEnviroventAccessory(this, accessory);
     this.activeAccessories.set(uuid, enviroventAccessory);
 
     // Remove any cached accessories that are no longer active
