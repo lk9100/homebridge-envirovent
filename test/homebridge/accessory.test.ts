@@ -251,7 +251,7 @@ describe('createEnviroventAccessory', () => {
     const { platform, accessory } = buildMockPlatformAndAccessory({ pollInterval: 1 });
     const ctx = createEnviroventAccessory(platform, accessory);
 
-    expect(platform.log.info).toHaveBeenCalledWith('Polling unit every 5s');
+    expect(platform.log.info).toHaveBeenCalledWith('🔄 Checking unit status every 5s');
 
     ctx.dispose();
   });
@@ -278,7 +278,7 @@ describe('createEnviroventAccessory', () => {
     const ctx = createEnviroventAccessory(platform, accessory);
 
     ctx.unitState.emit('connectionLost');
-    expect(platform.log.warn).toHaveBeenCalledWith(expect.stringContaining('Lost connection'));
+    expect(platform.log.warn).toHaveBeenCalledWith(expect.stringContaining('not responding'));
 
     ctx.dispose();
   });
@@ -288,7 +288,7 @@ describe('createEnviroventAccessory', () => {
     const ctx = createEnviroventAccessory(platform, accessory);
 
     ctx.unitState.emit('connectionRestored');
-    expect(platform.log.info).toHaveBeenCalledWith(expect.stringContaining('Connection restored'));
+    expect(platform.log.info).toHaveBeenCalledWith(expect.stringContaining('back online'));
 
     ctx.dispose();
   });

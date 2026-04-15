@@ -80,11 +80,11 @@ export const createEnviroventAccessory = (
   });
 
   unitState.on('connectionLost', () => {
-    platform.log.warn(`Lost connection to unit at ${host}:${port}`);
+    platform.log.warn(`⚠️ ${accessory.displayName} is not responding (${host}:${port})`);
   });
 
   unitState.on('connectionRestored', () => {
-    platform.log.info(`Connection restored to unit at ${host}:${port}`);
+    platform.log.info(`✅ ${accessory.displayName} is back online`);
   });
 
   unitState.on('pollError', (err: Error) => {
@@ -96,12 +96,12 @@ export const createEnviroventAccessory = (
   const intervalSec = Math.max(configInterval, MIN_POLL_INTERVAL);
   const intervalMs = intervalSec * 1000;
 
-  platform.log.info(`Polling unit every ${intervalSec}s`);
+  platform.log.info(`🔄 Checking unit status every ${intervalSec}s`);
 
   // Initial poll
   void unitState.poll().catch((err: Error) => {
     /* v8 ignore next */
-    platform.log.error('Initial poll failed:', err);
+    platform.log.error('❌ Could not reach unit on first attempt — will keep trying:', err.message);
   });
 
   const pollTimer = setInterval(() => {

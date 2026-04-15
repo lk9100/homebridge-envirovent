@@ -88,7 +88,7 @@ describe('EnviroventPlatform', () => {
     } as unknown as PlatformAccessory;
 
     platform.configureAccessory(mockAccessory);
-    expect(log.info).toHaveBeenCalledWith('Restoring cached accessory:', 'Cached PIV');
+    expect(log.debug).toHaveBeenCalledWith('Cached accessory loaded:', 'Cached PIV');
   });
 
   it('logs error and returns early when no host configured', () => {
@@ -98,7 +98,7 @@ describe('EnviroventPlatform', () => {
     // Trigger didFinishLaunching
     api._emit('didFinishLaunching');
 
-    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('No host configured'));
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('No unit found'));
     expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
   });
 
@@ -157,7 +157,7 @@ describe('EnviroventPlatform', () => {
     expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
     // Should still wire up the accessory
     expect(createEnviroventAccessory).toHaveBeenCalled();
-    expect(log.info).toHaveBeenCalledWith('Restoring existing accessory from cache:', expect.any(String));
+    expect(log.info).toHaveBeenCalledWith('♻️ %s ready (restored from cache)', expect.any(String));
   });
 
   it('removes orphaned cached accessories', () => {
@@ -181,7 +181,7 @@ describe('EnviroventPlatform', () => {
       'EnviroventPIV',
       [orphanedAccessory],
     );
-    expect(log.info).toHaveBeenCalledWith('Removing orphaned accessory:', 'Old Device');
+    expect(log.info).toHaveBeenCalledWith('🧹 %s removed (no longer configured)', 'Old Device');
   });
 
   it('sets host and port on accessory context', async () => {

@@ -33,7 +33,7 @@ export const createBoostService = (ctx: EnviroventAccessoryContext) => {
         },
       });
     } catch (err) {
-      platform.log.error('Failed to set boost:', err);
+      platform.log.error('❌ Could not toggle boost:', err);
     }
   };
 

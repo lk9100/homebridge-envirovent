@@ -70,7 +70,7 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
       _lastSentUnit = varMin;
       const currentSettings = unitState.settings;
       if (currentSettings) {
-        platform.log.info('PIV unit cannot turn off. Setting to minimum airflow (1%).');
+        platform.log.info('💨 Unit is always-on — setting airflow to minimum');
         void sendAirflowUpdate(varMin, currentSettings);
       }
     }
@@ -142,7 +142,7 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
         airflow: { mode: 'VAR', value: unitPercent, active: true },
       });
     } catch (err) {
-      platform.log.error('Failed to set airflow:', err);
+      platform.log.error('❌ Could not adjust airflow:', err);
     }
   };
 

@@ -150,7 +150,7 @@ describe('BoostService', () => {
     await on?.simulateSet(true);
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(platform.log.error).toHaveBeenCalledWith('Failed to set boost:', expect.any(Error));
+    expect(platform.log.error).toHaveBeenCalledWith('❌ Could not toggle boost:', expect.any(Error));
     // Boost should NOT have been optimistically updated since TCP failed
     expect(fakeAccessory.unitState.settings!.boost.enabled).toBe(false);
   });

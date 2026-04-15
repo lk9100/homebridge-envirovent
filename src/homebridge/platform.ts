@@ -45,14 +45,14 @@ export class EnviroventPlatform implements DynamicPlatformPlugin {
    * Called by Homebridge when restoring cached accessories from disk.
    */
   configureAccessory(accessory: PlatformAccessory): void {
-    this.log.info('Restoring cached accessory:', accessory.displayName);
+    this.log.debug('Cached accessory loaded:', accessory.displayName);
     this.cachedAccessories.set(accessory.UUID, accessory);
   }
 
   private discoverDevices(): void {
     const host = this.config.host;
     if (!host) {
-      this.log.error('No host configured. Set "host" in the plugin config to your unit\'s IP address.');
+      this.log.error('❌ No unit found — add your unit\'s IP address as "host" in the plugin config');
       // TODO: Add mDNS auto-discovery fallback
       return;
     }
@@ -64,9 +64,9 @@ export class EnviroventPlatform implements DynamicPlatformPlugin {
     // Check if we have a cached accessory for this UUID
     let accessory = this.cachedAccessories.get(uuid);
     if (accessory) {
-      this.log.info('Restoring existing accessory from cache:', displayName);
+      this.log.info('♻️ %s ready (restored from cache)', displayName);
     } else {
-      this.log.info('Adding new accessory:', displayName);
+      this.log.info('✨ %s connected for the first time', displayName);
       accessory = new this.api.platformAccessory(displayName, uuid);
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
     }
@@ -81,7 +81,7 @@ export class EnviroventPlatform implements DynamicPlatformPlugin {
     // Remove any cached accessories that are no longer active
     for (const [cachedUuid, cachedAccessory] of this.cachedAccessories) {
       if (!this.activeAccessories.has(cachedUuid)) {
-        this.log.info('Removing orphaned accessory:', cachedAccessory.displayName);
+        this.log.info('🧹 %s removed (no longer configured)', cachedAccessory.displayName);
         this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [cachedAccessory]);
       }
     }

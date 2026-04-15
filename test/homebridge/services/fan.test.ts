@@ -362,7 +362,7 @@ describe('FanService — error handling', () => {
     await speed.simulateSet(50);
     await vi.advanceTimersByTimeAsync(300);
 
-    expect(platform.log.error).toHaveBeenCalledWith('Failed to set airflow:', expect.any(Error));
+    expect(platform.log.error).toHaveBeenCalledWith('❌ Could not adjust airflow:', expect.any(Error));
   });
 
   it('does not apply optimistic update when TCP fails', async () => {
@@ -380,7 +380,7 @@ describe('FanService — error handling', () => {
 
     // TCP failed — optimistic update in sendAirflowUpdate was NOT called
     expect(unitState.settings!.airflow.value).toBe(50);
-    expect(fakeAccessory.platform.log.error).toHaveBeenCalledWith('Failed to set airflow:', expect.any(Error));
+    expect(fakeAccessory.platform.log.error).toHaveBeenCalledWith('❌ Could not adjust airflow:', expect.any(Error));
   });
 });
 
