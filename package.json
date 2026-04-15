@@ -1,6 +1,6 @@
 {
   "name": "homebridge-envirovent",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "Homebridge plugin for Envirovent Atmos PIV ventilation units",
   "type": "module",
   "main": "dist/homebridge/index.js",
@@ -28,6 +28,14 @@
     "piv",
     "ventilation"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lk9100/homebridge-envirovent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lk9100/homebridge-envirovent/issues"
+  },
+  "homepage": "https://github.com/lk9100/homebridge-envirovent#readme",
   "author": "",
   "license": "MIT",
   "peerDependencies": {

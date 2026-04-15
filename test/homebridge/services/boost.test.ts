@@ -85,7 +85,6 @@ describe('BoostService', () => {
   });
 
   it('reports On=false when settings are null', () => {
-    const settings = undefined;
     const mockClient = {
       getSettings: vi.fn(),
       setBoost: vi.fn().mockResolvedValue({ success: true }),
