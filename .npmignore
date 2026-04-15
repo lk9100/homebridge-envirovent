@@ -1,11 +1,16 @@
 src/
 test/
 android-app/
+.android-app-decompiled/
 .github/
 .claude/
+.idea/
+scripts/
 tsconfig*.json
 vitest.config.ts
 nodemon.json
+eslint.config.js
+*.iml
 .nvmrc
 .gitignore
 coverage/

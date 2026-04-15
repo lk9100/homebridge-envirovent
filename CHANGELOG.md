@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.1
+
+### Bug Fixes
+
+- Fix npm package including 45 MB of unnecessary files (decompiled Android app, IDE config) by updating `.npmignore`
+
 ## v0.3.0
 
 ### Features
