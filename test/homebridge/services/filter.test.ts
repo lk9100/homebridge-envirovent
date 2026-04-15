@@ -35,7 +35,7 @@ const buildTestAccessory = (filterOverrides?: { remainingDays?: number; resetMon
 describe('FilterService', () => {
   it('reports FILTER_OK when remainingDays > 0', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 180 });
-    const _filterService = createFilterService(fakeAccessory);
+    createFilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const indication = service?.getCharacteristic(platform.Characteristic.FilterChangeIndication);
@@ -44,7 +44,7 @@ describe('FilterService', () => {
 
   it('reports CHANGE_FILTER when remainingDays is 0', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 0 });
-    const _filterService = createFilterService(fakeAccessory);
+    createFilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const indication = service?.getCharacteristic(platform.Characteristic.FilterChangeIndication);
@@ -54,7 +54,7 @@ describe('FilterService', () => {
   it('calculates FilterLifeLevel as percentage of total days', () => {
     // 12 months = 360 days total. 180 remaining = 50%
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 180, resetMonths: 12 });
-    const _filterService = createFilterService(fakeAccessory);
+    createFilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
@@ -63,7 +63,7 @@ describe('FilterService', () => {
 
   it('reports 100% when filter is fresh', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 360, resetMonths: 12 });
-    const _filterService = createFilterService(fakeAccessory);
+    createFilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
@@ -72,7 +72,7 @@ describe('FilterService', () => {
 
   it('reports 0% when filter is expired', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 0, resetMonths: 12 });
-    const _filterService = createFilterService(fakeAccessory);
+    createFilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
@@ -81,7 +81,7 @@ describe('FilterService', () => {
 
   it('clamps negative remainingDays to 0%', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: -10, resetMonths: 12 });
-    const _filterService = createFilterService(fakeAccessory);
+    createFilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
@@ -101,7 +101,7 @@ describe('FilterService', () => {
 
   it('returns FILTER_OK and 100% when settings are null', () => {
     const { fakeAccessory, platform } = buildTestAccessory(null);
-    const _filterService = createFilterService(fakeAccessory);
+    createFilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     expect(service?.getCharacteristic(platform.Characteristic.FilterChangeIndication).simulateGet()).toBe(0);

@@ -32,7 +32,7 @@ const buildTestAccessory = (boostEnabled = false) => {
 describe('BoostService', () => {
   it('reports On=false when boost is disabled', () => {
     const { fakeAccessory, platform } = buildTestAccessory(false);
-    const _boostService = createBoostService(fakeAccessory);
+    createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);
@@ -41,7 +41,7 @@ describe('BoostService', () => {
 
   it('reports On=true when boost is enabled', () => {
     const { fakeAccessory, platform } = buildTestAccessory(true);
-    const _boostService = createBoostService(fakeAccessory);
+    createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);
@@ -50,7 +50,7 @@ describe('BoostService', () => {
 
   it('calls setBoost(true) when turned on', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory(false);
-    const _boostService = createBoostService(fakeAccessory);
+    createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);
@@ -63,7 +63,7 @@ describe('BoostService', () => {
 
   it('calls setBoost(false) when turned off', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory(true);
-    const _boostService = createBoostService(fakeAccessory);
+    createBoostService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
     const on = service?.getCharacteristic(platform.Characteristic.On);

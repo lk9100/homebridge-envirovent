@@ -107,13 +107,13 @@ export interface PivSettings {
 
 export interface CommandResponse {
   success: boolean;
-  error?: string;
+  error?: string | undefined;
   noResponse?: boolean;
 }
 
 export interface GetCurrentSettingsResponse extends CommandResponse {
   unitType: string;
-  softwareVersion?: string;
+  softwareVersion?: string | undefined;
   settings: PivSettings;
 }
 

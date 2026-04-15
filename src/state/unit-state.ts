@@ -19,7 +19,7 @@ export interface UnitStateOptions {
   /** Number of consecutive poll failures before emitting 'connectionLost'. Default: 3. */
   failureThreshold?: number;
   /** Pre-populate with known settings (useful for testing). Sets connected=true. */
-  initialSettings?: PivSettings;
+  initialSettings?: PivSettings | undefined;
 }
 
 const OPTIMISTIC_GRACE_MS = 5000;

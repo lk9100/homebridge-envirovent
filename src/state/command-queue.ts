@@ -17,7 +17,7 @@ export const createCommandQueue = (options: CommandQueueOptions = {}) => {
   const retryDelay = options.retryDelay ?? 1000;
   let queue: Promise<void> = Promise.resolve();
 
-  const delay = (ms: number): Promise<void> =>
+  const delay = async (ms: number): Promise<void> =>
     new Promise((resolve) => setTimeout(resolve, ms));
 
   const withRetry = async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -39,8 +39,8 @@ export const createCommandQueue = (options: CommandQueueOptions = {}) => {
    * Enqueue an async operation. It will wait for all previously enqueued
    * operations to complete before executing. Retries on failure.
    */
-  const enqueue = <T>(operation: () => Promise<T>): Promise<T> => {
-    const result = queue.then(() => withRetry(operation));
+  const enqueue = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = queue.then(async () => withRetry(operation));
     // Update the queue chain — swallow errors so the queue doesn't stall
     queue = result.then(() => {}, () => {});
     return result;

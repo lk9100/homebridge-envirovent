@@ -4,7 +4,7 @@ import { createCommandQueue } from '../../src/state/command-queue.js';
 describe('CommandQueue', () => {
   it('executes a single operation', async () => {
     const queue = createCommandQueue();
-    const result = await queue.enqueue(() => Promise.resolve(42));
+    const result = await queue.enqueue(async () => Promise.resolve(42));
     expect(result).toBe(42);
   });
 
@@ -49,7 +49,7 @@ describe('CommandQueue', () => {
     const queue = createCommandQueue({ retries: 1, retryDelay: 10 });
 
     await expect(
-      queue.enqueue(() => Promise.reject(new Error('permanent'))),
+      queue.enqueue(async () => Promise.reject(new Error('permanent'))),
     ).rejects.toThrow('permanent');
   });
 
@@ -58,11 +58,11 @@ describe('CommandQueue', () => {
 
     // First operation fails
     await expect(
-      queue.enqueue(() => Promise.reject(new Error('fail'))),
+      queue.enqueue(async () => Promise.reject(new Error('fail'))),
     ).rejects.toThrow();
 
     // Second operation should still work
-    const result = await queue.enqueue(() => Promise.resolve('ok'));
+    const result = await queue.enqueue(async () => Promise.resolve('ok'));
     expect(result).toBe('ok');
   });
 
@@ -81,5 +81,5 @@ describe('CommandQueue', () => {
   });
 });
 
-const delay = (ms: number): Promise<void> =>
+const delay = async (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));

@@ -34,7 +34,7 @@ export const pivSettingsResponse = {
 // ─── TCP mock server helpers ───────────────────────────────────────
 
 /** Create a TCP server that invokes `handler` with raw socket + received data. */
-export const createMockTcpServer = (
+export const createMockTcpServer = async (
   handler: (socket: net.Socket, data: string) => void,
 ): Promise<{ server: net.Server; port: number }> =>
   new Promise((resolve) => {
@@ -53,7 +53,7 @@ export const createMockTcpServer = (
   });
 
 /** Create a TCP server that parses JSON commands and returns JSON responses. */
-export const createMockUnit = (
+export const createMockUnit = async (
   handler: (command: Record<string, unknown>) => Record<string, unknown>,
 ): Promise<{ server: net.Server; port: number }> =>
   createMockTcpServer((socket, data) => {
@@ -66,5 +66,5 @@ export const createMockUnit = (
     }
   });
 
-export const closeTcpServer = (server: net.Server): Promise<void> =>
+export const closeTcpServer = async (server: net.Server): Promise<void> =>
   new Promise((resolve) => server.close(() => resolve()));

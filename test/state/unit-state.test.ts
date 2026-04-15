@@ -1,21 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createUnitState } from '../../src/state/unit-state.js';
 import type { EnviroventClient } from '../../src/api/client.js';
-import type { PivSettings, GetCurrentSettingsResponse, AirflowMode, SpigotType } from '../../src/api/types.js';
-
-const createMockSettings = (overrides?: Partial<PivSettings>): PivSettings => ({
-  airflow: { mode: 'VAR' as AirflowMode, value: 45, active: true },
-  airflowConfiguration: { maps: [], minPercentage: 8, maxPercentage: 100, varMinPercentage: 24 },
-  heater: { autoActive: true, temperature: 12 },
-  boost: { enabled: false, mins: 20 },
-  boostInput: { enabled: false },
-  filter: { remainingDays: 180, resetMonths: 12 },
-  summerBypass: { active: false, temperature: 22, summerShutdown: true },
-  spigot: { type: 1 as SpigotType, canChange: false },
-  kickUp: { active: false },
-  hoursRun: 8760,
-  ...overrides,
-});
+import type { PivSettings, GetCurrentSettingsResponse } from '../../src/api/types.js';
+import { createMockSettings } from '../homebridge/mock-homebridge.js';
 
 const createMockClient = (getSettingsImpl?: () => Promise<GetCurrentSettingsResponse>): EnviroventClient =>
   ({

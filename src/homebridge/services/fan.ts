@@ -71,7 +71,7 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
       const currentSettings = unitState.settings;
       if (currentSettings) {
         platform.log.info('PIV unit cannot turn off. Setting to minimum airflow (1%).');
-        sendAirflowUpdate(varMin, currentSettings);
+        void sendAirflowUpdate(varMin, currentSettings);
       }
     }
   };
@@ -118,7 +118,7 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
     // Debounce rapid slider changes (300ms)
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      sendAirflowUpdate(unitPercent, currentSettings);
+      void sendAirflowUpdate(unitPercent, currentSettings);
     }, 300);
   };
 
@@ -126,7 +126,7 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
     if (!currentSettings) return;
 
     try {
-      await commandQueue.enqueue(() =>
+      await commandQueue.enqueue(async () =>
         client.setHomeSettings({
           airflow: { mode: 'VAR', value: unitPercent },
           heater: { autoActive: currentSettings.heater.autoActive },
@@ -159,13 +159,13 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
   service
     .getCharacteristic(platform.Characteristic.Active)
     .onGet(() => getActive())
-    .onSet((value) => setActive(value));
+    .onSet(async (value) => setActive(value));
 
   service
     .getCharacteristic(platform.Characteristic.RotationSpeed)
     .setProps({ minValue: 0, maxValue: 100, minStep: 1 })
     .onGet(() => getRotationSpeed())
-    .onSet((value) => setRotationSpeed(value));
+    .onSet(async (value) => setRotationSpeed(value));
 
   service
     .getCharacteristic(platform.Characteristic.CurrentFanState)

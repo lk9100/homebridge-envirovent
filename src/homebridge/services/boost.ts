@@ -23,7 +23,7 @@ export const createBoostService = (ctx: EnviroventAccessoryContext) => {
   const setOn = async (value: CharacteristicValue): Promise<void> => {
     const enabled = value as boolean;
     try {
-      await commandQueue.enqueue(() => client.setBoost(enabled));
+      await commandQueue.enqueue(async () => client.setBoost(enabled));
 
       // Optimistic update
       unitState.applyOptimistic({
@@ -40,7 +40,7 @@ export const createBoostService = (ctx: EnviroventAccessoryContext) => {
   service
     .getCharacteristic(platform.Characteristic.On)
     .onGet(() => getOn())
-    .onSet((value) => setOn(value));
+    .onSet(async (value) => setOn(value));
 
   const update = (): void => {
     service.updateCharacteristic(platform.Characteristic.On, getOn());
