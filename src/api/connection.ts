@@ -10,6 +10,13 @@ import { DEFAULTS } from './types.js';
  *
  * The unit has no framing protocol — we read 1024-byte chunks and stop when
  * a chunk is smaller than 1024 bytes (matching the Android app's behavior).
+ *
+ * Known edge cases from this heuristic:
+ * - A response exactly 1024 bytes won't trigger the < 1024 check; the socket
+ *   timeout resolves it instead (adds up to `timeout` ms of latency).
+ * - If the unit sends a response in multiple small chunks (each < 1024 bytes),
+ *   the first chunk would be treated as the complete response. In practice the
+ *   unit sends the full response in a single write, so this doesn't occur.
  */
 export const sendCommand = async (
   host: string,

@@ -5,17 +5,21 @@
  * The wire protocol uses 0/1 for booleans; conversion happens here.
  */
 
-import { CommandError, ParseError } from './errors.js';
-import type {
-  AirflowConfiguration,
-  AirflowMap,
-  AirflowMode,
-  CommandResponse,
-  GetCurrentSettingsResponse,
-  PivSettings,
-  SetHomeSettingsParams,
-  SetInstallerSettingsParams,
-  SpigotType,
+import { CommandError, ParseError, ValidationError } from './errors.js';
+import {
+  VALID_BOOST_MINS,
+  VALID_FILTER_RESET_MONTHS,
+  HEATER_TEMP_RANGE,
+  SUMMER_TEMP_RANGE,
+  type AirflowConfiguration,
+  type AirflowMap,
+  type AirflowMode,
+  type CommandResponse,
+  type GetCurrentSettingsResponse,
+  type PivSettings,
+  type SetHomeSettingsParams,
+  type SetInstallerSettingsParams,
+  type SpigotType,
 } from './types.js';
 
 // ─── Wire format helpers ────────────────────────────────────────────
@@ -42,6 +46,32 @@ const getStr = (obj: Record<string, unknown>, key: string): string | undefined =
   return typeof val === 'string' ? val : undefined;
 };
 
+// ─── Validation helpers ─────────────────────────────────────────────
+
+const validateBoostMins = (mins: number): void => {
+  if (!(VALID_BOOST_MINS as readonly number[]).includes(mins)) {
+    throw new ValidationError(`boost.mins must be one of [${VALID_BOOST_MINS.join(', ')}], got ${mins}`);
+  }
+};
+
+const validateFilterResetMonths = (months: number): void => {
+  if (!(VALID_FILTER_RESET_MONTHS as readonly number[]).includes(months)) {
+    throw new ValidationError(`filter.resetMonths must be one of [${VALID_FILTER_RESET_MONTHS.join(', ')}], got ${months}`);
+  }
+};
+
+const validateRange = (value: number, range: { min: number; max: number }, name: string): void => {
+  if (value < range.min || value > range.max) {
+    throw new ValidationError(`${name} must be between ${range.min} and ${range.max}, got ${value}`);
+  }
+};
+
+const validateSpigotType = (type: number): void => {
+  if (type !== 1 && type !== 2) {
+    throw new ValidationError(`spigot.type must be 1 or 2, got ${type}`);
+  }
+};
+
 // ─── Command builders ───────────────────────────────────────────────
 
 export const buildGetCurrentSettings = (): string =>
@@ -56,8 +86,11 @@ export const buildSetBoost = (enabled: boolean): string =>
 export const buildSetSummerBypass = (enabled: boolean): string =>
   JSON.stringify({ command: 'SetSummerBypass', enabled: boolToInt(enabled) });
 
-export const buildSetHomeSettings = (params: SetHomeSettingsParams): string =>
-  JSON.stringify({
+export const buildSetHomeSettings = (params: SetHomeSettingsParams): string => {
+  validateBoostMins(params.boost.mins);
+  validateFilterResetMonths(params.filter.resetMonths);
+
+  return JSON.stringify({
     command: 'SetHomeSettings',
     settings: {
       airflow: {
@@ -78,9 +111,16 @@ export const buildSetHomeSettings = (params: SetHomeSettingsParams): string =>
       },
     },
   });
+};
 
-export const buildSetInstallerSettings = (params: SetInstallerSettingsParams): string =>
-  JSON.stringify({
+export const buildSetInstallerSettings = (params: SetInstallerSettingsParams): string => {
+  validateBoostMins(params.boost.mins);
+  validateFilterResetMonths(params.filter.resetMonths);
+  validateRange(params.heater.temperature, HEATER_TEMP_RANGE, 'heater.temperature');
+  validateRange(params.summerBypass.temperature, SUMMER_TEMP_RANGE, 'summerBypass.temperature');
+  validateSpigotType(params.spigot.type);
+
+  return JSON.stringify({
     command: 'SetInstallerSettings',
     settings: {
       airflow: {
@@ -106,6 +146,7 @@ export const buildSetInstallerSettings = (params: SetInstallerSettingsParams): s
       },
     },
   });
+};
 
 export const buildFilterMaintenanceComplete = (): string =>
   JSON.stringify({ command: 'FilterMaintenanceComplete' });

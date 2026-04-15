@@ -179,5 +179,9 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
     service.updateCharacteristic(platform.Characteristic.CurrentFanState, getCurrentFanState());
   };
 
-  return { update };
+  const dispose = (): void => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+  };
+
+  return { update, dispose };
 };

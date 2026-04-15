@@ -193,6 +193,18 @@ describe('UnitState', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it('applyOptimistic deep-merges nested objects (preserves unpatched fields)', async () => {
+    const state = createUnitState(createMockClient());
+    await state.poll();
+
+    // Patch only airflow.value — mode and active should be preserved
+    state.applyOptimistic({ airflow: { value: 80 } } as Partial<PivSettings>);
+
+    expect(state.settings!.airflow.value).toBe(80);
+    expect(state.settings!.airflow.mode).toBe('VAR');    // preserved, not undefined
+    expect(state.settings!.airflow.active).toBe(true);   // preserved, not undefined
+  });
+
   it('returns cached settings when poll fails', async () => {
     let shouldFail = false;
     const client = createMockClient(async () => {

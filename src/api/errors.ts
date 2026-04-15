@@ -58,3 +58,11 @@ export class ParseError extends EnviroventError {
     this.name = 'ParseError';
   }
 }
+
+/** Command parameters failed validation before being sent to the unit */
+export class ValidationError extends EnviroventError {
+  constructor(message: string) {
+    super(`Invalid parameter: ${message}`);
+    this.name = 'ValidationError';
+  }
+}

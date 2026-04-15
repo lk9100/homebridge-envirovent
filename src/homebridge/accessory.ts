@@ -18,6 +18,7 @@ export interface EnviroventAccessoryContext {
   client: EnviroventClient;
   commandQueue: CommandQueue;
   unitState: UnitState;
+  dispose: () => void;
 }
 
 const MIN_POLL_INTERVAL = 5;
@@ -26,14 +27,26 @@ export const createEnviroventAccessory = (
   platform: EnviroventPlatform,
   accessory: PlatformAccessory,
 ): EnviroventAccessoryContext => {
-  const host = accessory.context.host as string;
-  const port = (accessory.context.port as number) ?? DEFAULTS.PORT;
+  const host = accessory.context.host;
+  if (typeof host !== 'string' || host.length === 0) {
+    throw new Error(`Accessory "${accessory.displayName}" has no valid host configured`);
+  }
+
+  const rawPort = accessory.context.port;
+  const port = typeof rawPort === 'number' && rawPort > 0 ? rawPort : DEFAULTS.PORT;
 
   const client = createEnviroventClient({ host, port });
   const commandQueue = createCommandQueue({ retries: 1, retryDelay: 1000 });
   const unitState = createUnitState(client, { failureThreshold: 3 });
 
-  const ctx: EnviroventAccessoryContext = { platform, accessory, client, commandQueue, unitState };
+  const disposables: (() => void)[] = [];
+
+  const dispose = (): void => {
+    for (const fn of disposables) fn();
+    disposables.length = 0;
+  };
+
+  const ctx: EnviroventAccessoryContext = { platform, accessory, client, commandQueue, unitState, dispose };
 
   // ─── Accessory information ─────────────────────────────────
   const infoService = accessory.getService(platform.Service.AccessoryInformation);
@@ -45,13 +58,18 @@ export const createEnviroventAccessory = (
   }
 
   // ─── Register services ─────────────────────────────────────
-  const services: { update(): void }[] = [];
+  const services: { update(): void; dispose?: () => void }[] = [];
   services.push(createFanService(ctx));
   services.push(createFilterService(ctx));
 
   const showBoost = platform.config.showBoostSwitch ?? true;
   if (showBoost) {
     services.push(createBoostService(ctx));
+  }
+
+  // Register service dispose functions
+  for (const service of services) {
+    if (service.dispose) disposables.push(service.dispose);
   }
 
   // ─── State event handlers ──────────────────────────────────
@@ -81,15 +99,18 @@ export const createEnviroventAccessory = (
   platform.log.info(`Polling unit every ${intervalSec}s`);
 
   // Initial poll
-  unitState.poll().catch((err) => {
+  void unitState.poll().catch((err: Error) => {
     platform.log.error('Initial poll failed:', err);
   });
 
-  setInterval(() => {
-    unitState.poll().catch((err) => {
+  const pollTimer = setInterval(() => {
+    void unitState.poll().catch((err: Error) => {
       platform.log.debug('Poll failed:', err);
     });
   }, intervalMs);
+
+  disposables.push(() => clearInterval(pollTimer));
+  disposables.push(() => unitState.dispose());
 
   return ctx;
 };

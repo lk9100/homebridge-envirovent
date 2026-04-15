@@ -17,7 +17,7 @@ import {
   parseCommandResponse,
   parseGetCurrentSettings,
 } from '../../src/api/commands.js';
-import { CommandError, ParseError } from '../../src/api/errors.js';
+import { CommandError, ParseError, ValidationError } from '../../src/api/errors.js';
 import { pivSettingsResponse } from '../fixtures.js';
 
 // ─── Command builders ───────────────────────────────────────────────
@@ -264,5 +264,81 @@ describe('parseGetCurrentSettings', () => {
   it('handles missing softwareVersion gracefully', () => {
     const result = parseGetCurrentSettings(JSON.stringify(pivSettingsResponse));
     expect(result.softwareVersion).toBeUndefined();
+  });
+});
+
+// ─── Input validation ─────────────────────────────────────────────
+
+describe('buildSetHomeSettings validation', () => {
+  const validParams = {
+    airflow: { mode: 'VAR' as const, value: 50 },
+    heater: { autoActive: true },
+    boost: { mins: 20 },
+    filter: { resetMonths: 12 },
+    summerBypass: { summerShutdown: false },
+  };
+
+  it('accepts valid parameters', () => {
+    expect(() => buildSetHomeSettings(validParams)).not.toThrow();
+  });
+
+  it('rejects invalid boost mins', () => {
+    expect(() => buildSetHomeSettings({ ...validParams, boost: { mins: 999 } }))
+      .toThrow(ValidationError);
+  });
+
+  it('rejects invalid filter reset months', () => {
+    expect(() => buildSetHomeSettings({ ...validParams, filter: { resetMonths: 7 } }))
+      .toThrow(ValidationError);
+  });
+});
+
+describe('buildSetInstallerSettings validation', () => {
+  const validParams = {
+    airflow: { mode: 'VAR' as const, value: 50 },
+    heater: { autoActive: true, temperature: 10 },
+    boost: { mins: 40 },
+    filter: { resetMonths: 24 },
+    summerBypass: { temperature: 22, summerShutdown: true },
+    spigot: { type: 1 as const },
+  };
+
+  it('accepts valid parameters', () => {
+    expect(() => buildSetInstallerSettings(validParams)).not.toThrow();
+  });
+
+  it('rejects heater temperature below range', () => {
+    expect(() => buildSetInstallerSettings({ ...validParams, heater: { autoActive: true, temperature: 2 } }))
+      .toThrow(ValidationError);
+  });
+
+  it('rejects heater temperature above range', () => {
+    expect(() => buildSetInstallerSettings({ ...validParams, heater: { autoActive: true, temperature: 20 } }))
+      .toThrow(ValidationError);
+  });
+
+  it('rejects summer bypass temperature below range', () => {
+    expect(() => buildSetInstallerSettings({ ...validParams, summerBypass: { temperature: 10, summerShutdown: true } }))
+      .toThrow(ValidationError);
+  });
+
+  it('rejects summer bypass temperature above range', () => {
+    expect(() => buildSetInstallerSettings({ ...validParams, summerBypass: { temperature: 35, summerShutdown: true } }))
+      .toThrow(ValidationError);
+  });
+
+  it('rejects invalid spigot type', () => {
+    expect(() => buildSetInstallerSettings({ ...validParams, spigot: { type: 3 as 1 } }))
+      .toThrow(ValidationError);
+  });
+
+  it('rejects invalid boost mins', () => {
+    expect(() => buildSetInstallerSettings({ ...validParams, boost: { mins: 100 } }))
+      .toThrow(ValidationError);
+  });
+
+  it('rejects invalid filter reset months', () => {
+    expect(() => buildSetInstallerSettings({ ...validParams, filter: { resetMonths: 6 } }))
+      .toThrow(ValidationError);
   });
 });

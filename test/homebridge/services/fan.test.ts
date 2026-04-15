@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createFanService } from '../../../src/homebridge/services/fan.js';
 import { createUnitState } from '../../../src/state/unit-state.js';
 import { createCommandQueue } from '../../../src/state/command-queue.js';
@@ -51,6 +51,9 @@ const getService = (fakeAccessory: EnviroventAccessoryContext) =>
 // ─── Active characteristic ──────────────────────────────────────────
 
 describe('FanService — Active', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it('getActive always returns 1 (unit is always on)', () => {
     const { fakeAccessory, platform } = buildTestAccessory({
       airflow: { mode: 'VAR', value: 24, active: false },
@@ -71,7 +74,7 @@ describe('FanService — Active', () => {
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
     await active.simulateSet(0);
-    await new Promise((r) => setTimeout(r, 100));
+    await vi.advanceTimersByTimeAsync(50);
 
     expect(active.getValue()).toBe(1);
   });
@@ -83,7 +86,7 @@ describe('FanService — Active', () => {
 
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
     await active.simulateSet(0);
-    await new Promise((r) => setTimeout(r, 100));
+    await vi.advanceTimersByTimeAsync(50);
 
     expect(speed.getValue()).toBe(1);
   });
@@ -94,7 +97,7 @@ describe('FanService — Active', () => {
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
     await active.simulateSet(0);
-    await new Promise((r) => setTimeout(r, 100));
+    await vi.advanceTimersByTimeAsync(50);
 
     expect(mockClient.setHomeSettings).toHaveBeenCalled();
     const call = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -108,7 +111,7 @@ describe('FanService — Active', () => {
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
     await active.simulateSet(1);
-    await new Promise((r) => setTimeout(r, 100));
+    await vi.advanceTimersByTimeAsync(50);
 
     expect(mockClient.setHomeSettings).not.toHaveBeenCalled();
   });
@@ -119,7 +122,7 @@ describe('FanService — Active', () => {
     const active = getService(fakeAccessory).getCharacteristic(platform.Characteristic.Active);
 
     await active.simulateSet(0);
-    await new Promise((r) => setTimeout(r, 100));
+    await vi.advanceTimersByTimeAsync(50);
 
     // Active should still be forced back to 1 (PIV is always on)
     expect(active.getValue()).toBe(1);
@@ -209,6 +212,9 @@ describe('FanService — RotationSpeed (get, mapping)', () => {
 });
 
 describe('FanService — RotationSpeed (set, mapping)', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it('maps HK 0% to unit varMin (24%)', async () => {
     const { fakeAccessory, mockClient } = buildTestAccessory();
     createFanService(fakeAccessory);
@@ -217,7 +223,7 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
     );
 
     await speed.simulateSet(0);
-    await new Promise((r) => setTimeout(r, 450));
+    await vi.advanceTimersByTimeAsync(300);
 
     const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBeGreaterThan(0);
@@ -232,7 +238,7 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
     );
 
     await speed.simulateSet(100);
-    await new Promise((r) => setTimeout(r, 450));
+    await vi.advanceTimersByTimeAsync(300);
 
     const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBeGreaterThan(0);
@@ -247,7 +253,7 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
     );
 
     await speed.simulateSet(50);
-    await new Promise((r) => setTimeout(r, 450));
+    await vi.advanceTimersByTimeAsync(300);
 
     const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBeGreaterThan(0);
@@ -263,7 +269,7 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
       );
 
       await speed.simulateSet(hkValue);
-      await new Promise((r) => setTimeout(r, 450));
+      await vi.advanceTimersByTimeAsync(300);
 
       const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
       expect(calls.length, `setHomeSettings should be called for HK ${hkValue}%`).toBeGreaterThan(0);
@@ -275,6 +281,9 @@ describe('FanService — RotationSpeed (set, mapping)', () => {
 });
 
 describe('FanService — RotationSpeed (set, edge cases)', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it('does nothing when settings are null', async () => {
     const { fakeAccessory, mockClient } = buildTestAccessory(null);
     createFanService(fakeAccessory);
@@ -283,7 +292,7 @@ describe('FanService — RotationSpeed (set, edge cases)', () => {
       fakeAccessory.platform.Characteristic.RotationSpeed,
     );
     await speed.simulateSet(50);
-    await new Promise((r) => setTimeout(r, 450));
+    await vi.advanceTimersByTimeAsync(300);
 
     expect(mockClient.setHomeSettings).not.toHaveBeenCalled();
   });
@@ -302,7 +311,7 @@ describe('FanService — RotationSpeed (set, edge cases)', () => {
     await speed.simulateSet(40);
     await speed.simulateSet(50);
     // Wait for debounce (300ms) + command queue
-    await new Promise((r) => setTimeout(r, 450));
+    await vi.advanceTimersByTimeAsync(300);
 
     const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(1); // Only one call, not five
@@ -341,6 +350,9 @@ describe('FanService — update()', () => {
 // ─── sendAirflowUpdate error handling ───────────────────────────────
 
 describe('FanService — error handling', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it('logs error and does not throw when setHomeSettings fails', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory();
     (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('TCP timeout'));
@@ -348,7 +360,7 @@ describe('FanService — error handling', () => {
     const speed = getService(fakeAccessory).getCharacteristic(platform.Characteristic.RotationSpeed);
 
     await speed.simulateSet(50);
-    await new Promise((r) => setTimeout(r, 450));
+    await vi.advanceTimersByTimeAsync(300);
 
     expect(platform.log.error).toHaveBeenCalledWith('Failed to set airflow:', expect.any(Error));
   });
@@ -364,7 +376,7 @@ describe('FanService — error handling', () => {
     );
 
     await speed.simulateSet(80);
-    await new Promise((r) => setTimeout(r, 450));
+    await vi.advanceTimersByTimeAsync(300);
 
     // TCP failed — optimistic update in sendAirflowUpdate was NOT called
     expect(unitState.settings!.airflow.value).toBe(50);

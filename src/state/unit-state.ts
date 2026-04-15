@@ -122,9 +122,27 @@ export const createUnitState = (client: EnviroventClient, options: UnitStateOpti
   const applyOptimistic = (patch: Partial<PivSettings>): void => {
     if (!_settings) return;
 
-    _settings = { ..._settings, ...patch };
+    // Deep merge one level: for each key in the patch, if both the existing
+    // value and patch value are objects, spread-merge them. This prevents
+    // partial sub-objects (e.g. { airflow: { value: 50 } }) from wiping
+    // sibling fields (mode, active).
+    const merged = { ..._settings };
+    for (const key of Object.keys(patch) as (keyof PivSettings)[]) {
+      const existing = _settings[key];
+      const incoming = patch[key];
+      if (typeof existing === 'object' && existing !== null && typeof incoming === 'object' && incoming !== null) {
+        (merged as Record<string, unknown>)[key] = { ...existing, ...incoming };
+      } else if (incoming !== undefined) {
+        (merged as Record<string, unknown>)[key] = incoming;
+      }
+    }
+    _settings = merged;
     _lastOptimisticAt = Date.now();
     emitter.emit('stateChanged', _settings);
+  };
+
+  const dispose = (): void => {
+    emitter.removeAllListeners();
   };
 
   return {
@@ -135,6 +153,7 @@ export const createUnitState = (client: EnviroventClient, options: UnitStateOpti
     emit: emitter.emit.bind(emitter) as EventEmitter['emit'],
     poll,
     applyOptimistic,
+    dispose,
   };
 };
 
