@@ -11,13 +11,13 @@ import { DEFAULTS } from './types.js';
  * The unit has no framing protocol — we read 1024-byte chunks and stop when
  * a chunk is smaller than 1024 bytes (matching the Android app's behavior).
  */
-export async function sendCommand(
+export const sendCommand = async (
   host: string,
   port: number,
   payload: string,
   timeout: number = DEFAULTS.TIMEOUT,
-): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
+): Promise<string> =>
+  new Promise<string>((resolve, reject) => {
     const chunks: Buffer[] = [];
     let settled = false;
 
@@ -74,4 +74,3 @@ export async function sendCommand(
 
     socket.connect(port, host);
   });
-}

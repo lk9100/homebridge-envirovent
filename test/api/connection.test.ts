@@ -2,40 +2,20 @@ import * as net from 'node:net';
 import { describe, it, expect, afterEach } from 'vitest';
 import { sendCommand } from '../../src/api/connection.js';
 import { ConnectionError, TimeoutError, NoResponseError } from '../../src/api/errors.js';
-
-function createMockServer(handler: (socket: net.Socket, data: string) => void): Promise<{ server: net.Server; port: number }> {
-  return new Promise((resolve) => {
-    const server = net.createServer((socket) => {
-      const chunks: Buffer[] = [];
-      socket.on('data', (chunk) => {
-        chunks.push(chunk);
-        const data = Buffer.concat(chunks).toString('utf8');
-        handler(socket, data);
-      });
-    });
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address() as net.AddressInfo;
-      resolve({ server, port: addr.port });
-    });
-  });
-}
-
-function closeServer(server: net.Server): Promise<void> {
-  return new Promise((resolve) => server.close(() => resolve()));
-}
+import { createMockTcpServer, closeTcpServer } from '../fixtures.js';
 
 let testServer: net.Server | undefined;
 
 afterEach(async () => {
   if (testServer) {
-    await closeServer(testServer);
+    await closeTcpServer(testServer);
     testServer = undefined;
   }
 });
 
 describe('sendCommand', () => {
   it('sends a JSON payload and receives a response', async () => {
-    const { server, port } = await createMockServer((socket, data) => {
+    const { server, port } = await createMockTcpServer((socket, data) => {
       const cmd = JSON.parse(data);
       expect(cmd.command).toBe('GetStatus');
       socket.end(JSON.stringify({ success: 1 }));
@@ -48,7 +28,7 @@ describe('sendCommand', () => {
 
   it('handles large responses correctly', async () => {
     const largePayload = { success: 1, data: 'x'.repeat(2000) };
-    const { server, port } = await createMockServer((socket) => {
+    const { server, port } = await createMockTcpServer((socket) => {
       socket.end(JSON.stringify(largePayload));
     });
     testServer = server;
@@ -65,7 +45,7 @@ describe('sendCommand', () => {
   });
 
   it('throws TimeoutError when server does not respond', async () => {
-    const { server, port } = await createMockServer(() => {
+    const { server, port } = await createMockTcpServer(() => {
       // Intentionally never respond
     });
     testServer = server;
@@ -76,7 +56,7 @@ describe('sendCommand', () => {
   });
 
   it('throws NoResponseError when server closes connection with no data', async () => {
-    const { server, port } = await createMockServer((socket) => {
+    const { server, port } = await createMockTcpServer((socket) => {
       socket.end(); // Close immediately with no data
     });
     testServer = server;
@@ -87,7 +67,7 @@ describe('sendCommand', () => {
   });
 
   it('resolves with data when server closes connection after sending', async () => {
-    const { server, port } = await createMockServer((socket) => {
+    const { server, port } = await createMockTcpServer((socket) => {
       socket.end('{"success":1}');
     });
     testServer = server;
@@ -104,7 +84,7 @@ describe('sendCommand', () => {
     const exactPayload = paddedResponse.padEnd(1024, ' ');
     expect(exactPayload.length).toBe(1024);
 
-    const { server, port } = await createMockServer((socket) => {
+    const { server, port } = await createMockTcpServer((socket) => {
       socket.write(exactPayload);
       // Don't close — let the read timeout resolve it
     });

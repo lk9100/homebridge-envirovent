@@ -44,24 +44,20 @@ const getStr = (obj: Record<string, unknown>, key: string): string | undefined =
 
 // ─── Command builders ───────────────────────────────────────────────
 
-export function buildGetCurrentSettings(): string {
-  return JSON.stringify({ command: 'GetCurrentSettings' });
-}
+export const buildGetCurrentSettings = (): string =>
+  JSON.stringify({ command: 'GetCurrentSettings' });
 
-export function buildGetStatus(): string {
-  return JSON.stringify({ command: 'GetStatus' });
-}
+export const buildGetStatus = (): string =>
+  JSON.stringify({ command: 'GetStatus' });
 
-export function buildSetBoost(enabled: boolean): string {
-  return JSON.stringify({ command: 'SetBoost', enabled: boolToInt(enabled) });
-}
+export const buildSetBoost = (enabled: boolean): string =>
+  JSON.stringify({ command: 'SetBoost', enabled: boolToInt(enabled) });
 
-export function buildSetSummerBypass(enabled: boolean): string {
-  return JSON.stringify({ command: 'SetSummerBypass', enabled: boolToInt(enabled) });
-}
+export const buildSetSummerBypass = (enabled: boolean): string =>
+  JSON.stringify({ command: 'SetSummerBypass', enabled: boolToInt(enabled) });
 
-export function buildSetHomeSettings(params: SetHomeSettingsParams): string {
-  return JSON.stringify({
+export const buildSetHomeSettings = (params: SetHomeSettingsParams): string =>
+  JSON.stringify({
     command: 'SetHomeSettings',
     settings: {
       airflow: {
@@ -82,10 +78,9 @@ export function buildSetHomeSettings(params: SetHomeSettingsParams): string {
       },
     },
   });
-}
 
-export function buildSetInstallerSettings(params: SetInstallerSettingsParams): string {
-  return JSON.stringify({
+export const buildSetInstallerSettings = (params: SetInstallerSettingsParams): string =>
+  JSON.stringify({
     command: 'SetInstallerSettings',
     settings: {
       airflow: {
@@ -111,46 +106,37 @@ export function buildSetInstallerSettings(params: SetInstallerSettingsParams): s
       },
     },
   });
-}
 
-export function buildFilterMaintenanceComplete(): string {
-  return JSON.stringify({ command: 'FilterMaintenanceComplete' });
-}
+export const buildFilterMaintenanceComplete = (): string =>
+  JSON.stringify({ command: 'FilterMaintenanceComplete' });
 
-export function buildSetSpigotType(type: SpigotType): string {
-  return JSON.stringify({ command: 'SetSpigotType', type });
-}
+export const buildSetSpigotType = (type: SpigotType): string =>
+  JSON.stringify({ command: 'SetSpigotType', type });
 
-export function buildRestoreHomeDefaults(): string {
-  return JSON.stringify({ command: 'RestoreHomeSettingsToFactoryDefaults' });
-}
+export const buildRestoreHomeDefaults = (): string =>
+  JSON.stringify({ command: 'RestoreHomeSettingsToFactoryDefaults' });
 
-export function buildRestoreInstallerDefaults(): string {
-  return JSON.stringify({ command: 'RestoreInstallerSettingsToFactoryDefaults' });
-}
+export const buildRestoreInstallerDefaults = (): string =>
+  JSON.stringify({ command: 'RestoreInstallerSettingsToFactoryDefaults' });
 
-export function buildRestoreCommissioningDefaults(): string {
-  return JSON.stringify({ command: 'RestoreCommissioningSettingsToFactoryDefaults' });
-}
+export const buildRestoreCommissioningDefaults = (): string =>
+  JSON.stringify({ command: 'RestoreCommissioningSettingsToFactoryDefaults' });
 
 // ─── WiFi setup commands ────────────────────────────────────────────
 
-export function buildGetWifiNetworks(): string {
-  return JSON.stringify({ command: 'GetWifiNetworks' });
-}
+export const buildGetWifiNetworks = (): string =>
+  JSON.stringify({ command: 'GetWifiNetworks' });
 
-export function buildConnectToNetwork(ssid: string, key: string, securityType: string): string {
-  return JSON.stringify({ command: 'ConnectToNetwork', ssid, key, securityType });
-}
+export const buildConnectToNetwork = (ssid: string, key: string, securityType: string): string =>
+  JSON.stringify({ command: 'ConnectToNetwork', ssid, key, securityType });
 
-export function buildResetAccessPoint(): string {
-  return JSON.stringify({ command: 'ResetAccessPoint' });
-}
+export const buildResetAccessPoint = (): string =>
+  JSON.stringify({ command: 'ResetAccessPoint' });
 
 // ─── Response parsers ───────────────────────────────────────────────
 
 /** Parse the base response envelope. Throws CommandError on failure responses. */
-export function parseCommandResponse(raw: string): CommandResponse {
+export const parseCommandResponse = (raw: string): CommandResponse => {
   let json: Record<string, unknown>;
   try {
     json = JSON.parse(raw) as Record<string, unknown>;
@@ -170,10 +156,10 @@ export function parseCommandResponse(raw: string): CommandResponse {
   }
 
   return { success: true };
-}
+};
 
 /** Parse a GetCurrentSettings response into typed PivSettings. */
-export function parseGetCurrentSettings(raw: string): GetCurrentSettingsResponse {
+export const parseGetCurrentSettings = (raw: string): GetCurrentSettingsResponse => {
   let json: Record<string, unknown>;
   try {
     json = JSON.parse(raw) as Record<string, unknown>;
@@ -203,9 +189,9 @@ export function parseGetCurrentSettings(raw: string): GetCurrentSettingsResponse
   const settings = parseSettings(settingsObj, json);
 
   return { success: true, unitType, softwareVersion, settings };
-}
+};
 
-function parseSettings(settingsObj: Record<string, unknown>, rootJson: Record<string, unknown>): PivSettings {
+const parseSettings = (settingsObj: Record<string, unknown>, rootJson: Record<string, unknown>): PivSettings => {
   const airflowObj = getObj(settingsObj, 'airflow') ?? {};
   const heaterObj = getObj(settingsObj, 'heater') ?? {};
   const boostObj = getObj(settingsObj, 'boost') ?? {};
@@ -254,9 +240,9 @@ function parseSettings(settingsObj: Record<string, unknown>, rootJson: Record<st
     },
     hoursRun: getNum(settingsObj, 'hoursRun'),
   };
-}
+};
 
-function parseAirflowConfiguration(configObj: Record<string, unknown> | undefined): AirflowConfiguration {
+const parseAirflowConfiguration = (configObj: Record<string, unknown> | undefined): AirflowConfiguration => {
   if (!configObj) {
     return { maps: [], minPercentage: 0, maxPercentage: 100, varMinPercentage: 0 };
   }
@@ -287,4 +273,4 @@ function parseAirflowConfiguration(configObj: Record<string, unknown> | undefine
   const varMinPercentage = maps[0]?.percent ?? minPercentage;
 
   return { maps, minPercentage, maxPercentage, varMinPercentage };
-}
+};

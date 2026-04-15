@@ -7,8 +7,7 @@
 import { vi } from 'vitest';
 import type { PivSettings, AirflowMode, SpigotType } from '../../src/api/types.js';
 
-export function createMockSettings(overrides?: Partial<PivSettings>): PivSettings {
-  return {
+export const createMockSettings = (overrides?: Partial<PivSettings>): PivSettings => ({
     airflow: { mode: 'VAR' as AirflowMode, value: 45, active: true },
     airflowConfiguration: {
       maps: [
@@ -29,8 +28,7 @@ export function createMockSettings(overrides?: Partial<PivSettings>): PivSetting
     kickUp: { active: false },
     hoursRun: 8760,
     ...overrides,
-  };
-}
+  });
 
 // Mock characteristic that stores handlers
 export class MockCharacteristic {
@@ -102,7 +100,7 @@ export class MockService {
 }
 
 // Mock platform with minimal Characteristic/Service references
-export function createMockPlatform() {
+export const createMockPlatform = () => {
   // Characteristic constants — using objects with UUID so they can be used as Map keys
   const ActiveChar = { UUID: 'Active', ACTIVE: 1, INACTIVE: 0 };
   const RotationSpeedChar = { UUID: 'RotationSpeed' };
@@ -145,9 +143,9 @@ export function createMockPlatform() {
       showBoostSwitch: true,
     },
   };
-}
+};
 
-export function createMockAccessory(platformOverrides?: Partial<ReturnType<typeof createMockPlatform>>) {
+export const createMockAccessory = (platformOverrides?: Partial<ReturnType<typeof createMockPlatform>>) => {
   const platform = { ...createMockPlatform(), ...platformOverrides };
   const services = new Map<string, MockService>();
 
@@ -166,4 +164,4 @@ export function createMockAccessory(platformOverrides?: Partial<ReturnType<typeo
   };
 
   return { platform, accessory, services };
-}
+};

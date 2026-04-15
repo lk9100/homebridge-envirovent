@@ -2,66 +2,13 @@ import * as net from 'node:net';
 import { describe, it, expect, afterEach } from 'vitest';
 import { EnviroventClient } from '../../src/api/client.js';
 import { CommandError, ConnectionError } from '../../src/api/errors.js';
-
-const pivSettingsResponse = {
-  success: 1,
-  unitType: 'piv',
-  settings: {
-    airflow: { mode: 'VAR', value: 45, active: 1 },
-    heater: { autoActive: 1, temperature: 12 },
-    boost: { enabled: 0, mins: 20 },
-    boostInput: { enabled: 0 },
-    filter: { remainingDays: 180, resetMonths: 12 },
-    summerBypass: { active: 0, temperature: 22, summerShutdown: 1 },
-    spigot: { type: 1, canChange: 0 },
-    kickUp: { active: 0 },
-    hoursRun: 8760,
-  },
-  airflowConfiguration: {
-    maps: [
-      { mark: 1, percent: 20 },
-      { mark: 2, percent: 40 },
-      { mark: 3, percent: 60 },
-      { mark: 4, percent: 80 },
-      { mark: 5, percent: 100 },
-    ],
-  },
-};
-
-function createMockUnit(
-  handler: (command: Record<string, unknown>) => Record<string, unknown>,
-): Promise<{ server: net.Server; port: number }> {
-  return new Promise((resolve) => {
-    const server = net.createServer((socket) => {
-      const chunks: Buffer[] = [];
-      socket.on('data', (chunk) => {
-        chunks.push(chunk);
-        const data = Buffer.concat(chunks).toString('utf8');
-        try {
-          const cmd = JSON.parse(data);
-          const response = handler(cmd);
-          socket.end(JSON.stringify(response));
-        } catch {
-          // Wait for more data
-        }
-      });
-    });
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address() as net.AddressInfo;
-      resolve({ server, port: addr.port });
-    });
-  });
-}
-
-function closeServer(server: net.Server): Promise<void> {
-  return new Promise((resolve) => server.close(() => resolve()));
-}
+import { pivSettingsResponse, createMockUnit, closeTcpServer } from '../fixtures.js';
 
 let testServer: net.Server | undefined;
 
 afterEach(async () => {
   if (testServer) {
-    await closeServer(testServer);
+    await closeTcpServer(testServer);
     testServer = undefined;
   }
 });

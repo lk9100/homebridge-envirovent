@@ -1,33 +1,30 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { UnitState } from '../../src/state/unit-state.js';
 import type { EnviroventClient } from '../../src/api/client.js';
 import type { PivSettings, GetCurrentSettingsResponse, AirflowMode, SpigotType } from '../../src/api/types.js';
 
-function createMockSettings(overrides?: Partial<PivSettings>): PivSettings {
-  return {
-    airflow: { mode: 'VAR' as AirflowMode, value: 45, active: true },
-    airflowConfiguration: { maps: [], minPercentage: 8, maxPercentage: 100, varMinPercentage: 24 },
-    heater: { autoActive: true, temperature: 12 },
-    boost: { enabled: false, mins: 20 },
-    boostInput: { enabled: false },
-    filter: { remainingDays: 180, resetMonths: 12 },
-    summerBypass: { active: false, temperature: 22, summerShutdown: true },
-    spigot: { type: 1 as SpigotType, canChange: false },
-    kickUp: { active: false },
-    hoursRun: 8760,
-    ...overrides,
-  };
-}
+const createMockSettings = (overrides?: Partial<PivSettings>): PivSettings => ({
+  airflow: { mode: 'VAR' as AirflowMode, value: 45, active: true },
+  airflowConfiguration: { maps: [], minPercentage: 8, maxPercentage: 100, varMinPercentage: 24 },
+  heater: { autoActive: true, temperature: 12 },
+  boost: { enabled: false, mins: 20 },
+  boostInput: { enabled: false },
+  filter: { remainingDays: 180, resetMonths: 12 },
+  summerBypass: { active: false, temperature: 22, summerShutdown: true },
+  spigot: { type: 1 as SpigotType, canChange: false },
+  kickUp: { active: false },
+  hoursRun: 8760,
+  ...overrides,
+});
 
-function createMockClient(getSettingsImpl?: () => Promise<GetCurrentSettingsResponse>): EnviroventClient {
-  return {
+const createMockClient = (getSettingsImpl?: () => Promise<GetCurrentSettingsResponse>): EnviroventClient =>
+  ({
     getSettings: getSettingsImpl ?? (async () => ({
       success: true as const,
       unitType: 'piv',
       settings: createMockSettings(),
     })),
-  } as unknown as EnviroventClient;
-}
+  } as unknown as EnviroventClient);
 
 describe('UnitState', () => {
   it('starts with null settings and disconnected', () => {
@@ -102,7 +99,7 @@ describe('UnitState', () => {
       throw new Error('connection refused');
     });
 
-    const state = new UnitState(client, { failureThreshold: 2 });
+    const _state = new UnitState(client, { failureThreshold: 2 });
     // First poll to establish "connected" would fail, but we need to simulate
     // being connected first. Let's do a successful poll then switch to failing.
 
@@ -294,5 +291,75 @@ describe('UnitState', () => {
     await state.poll();
     expect(state.consecutiveFailures).toBe(1);
     expect(state.settings).toBeNull();
+  });
+});
+
+// ─── settingsEqual coverage ───────────────────────────────────────
+
+describe('UnitState — settingsEqual detects all field changes', () => {
+  it('emits stateChanged when spigot.type changes', async () => {
+    let spigotType = 1;
+    const client = createMockClient(async () => ({
+      success: true as const,
+      unitType: 'piv',
+      settings: createMockSettings({
+        spigot: { type: spigotType as 1 | 2, canChange: false },
+      }),
+    }));
+
+    const state = new UnitState(client);
+    await state.poll();
+
+    spigotType = 2;
+    const handler = vi.fn();
+    state.on('stateChanged', handler);
+    await state.poll();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(state.settings!.spigot.type).toBe(2);
+  });
+
+  it('emits stateChanged when kickUp.active changes', async () => {
+    let kickUpActive = false;
+    const client = createMockClient(async () => ({
+      success: true as const,
+      unitType: 'piv',
+      settings: createMockSettings({
+        kickUp: { active: kickUpActive },
+      }),
+    }));
+
+    const state = new UnitState(client);
+    await state.poll();
+
+    kickUpActive = true;
+    const handler = vi.fn();
+    state.on('stateChanged', handler);
+    await state.poll();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(state.settings!.kickUp.active).toBe(true);
+  });
+
+  it('emits stateChanged when boostInput.enabled changes', async () => {
+    let boostInputEnabled = false;
+    const client = createMockClient(async () => ({
+      success: true as const,
+      unitType: 'piv',
+      settings: createMockSettings({
+        boostInput: { enabled: boostInputEnabled },
+      }),
+    }));
+
+    const state = new UnitState(client);
+    await state.poll();
+
+    boostInputEnabled = true;
+    const handler = vi.fn();
+    state.on('stateChanged', handler);
+    await state.poll();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(state.settings!.boostInput.enabled).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { FilterService } from '../../../src/homebridge/services/filter.js';
 import { UnitState } from '../../../src/state/unit-state.js';
 import { CommandQueue } from '../../../src/state/command-queue.js';
@@ -6,7 +6,7 @@ import { createMockSettings, createMockAccessory, MockService } from '../mock-ho
 import type { EnviroventClient } from '../../../src/api/client.js';
 import type { EnviroventAccessory } from '../../../src/homebridge/accessory.js';
 
-function buildTestAccessory(filterOverrides?: { remainingDays?: number; resetMonths?: number }) {
+const buildTestAccessory = (filterOverrides?: { remainingDays?: number; resetMonths?: number }) => {
   const settings = createMockSettings({
     filter: {
       remainingDays: filterOverrides?.remainingDays ?? 180,
@@ -32,12 +32,12 @@ function buildTestAccessory(filterOverrides?: { remainingDays?: number; resetMon
   } as unknown as EnviroventAccessory;
 
   return { fakeAccessory, platform };
-}
+};
 
 describe('FilterService', () => {
   it('reports FILTER_OK when remainingDays > 0', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 180 });
-    const filterService = new FilterService(fakeAccessory);
+    const _filterService = new FilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const indication = service?.getCharacteristic(platform.Characteristic.FilterChangeIndication);
@@ -46,7 +46,7 @@ describe('FilterService', () => {
 
   it('reports CHANGE_FILTER when remainingDays is 0', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 0 });
-    const filterService = new FilterService(fakeAccessory);
+    const _filterService = new FilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const indication = service?.getCharacteristic(platform.Characteristic.FilterChangeIndication);
@@ -56,7 +56,7 @@ describe('FilterService', () => {
   it('calculates FilterLifeLevel as percentage of total days', () => {
     // 12 months = 360 days total. 180 remaining = 50%
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 180, resetMonths: 12 });
-    const filterService = new FilterService(fakeAccessory);
+    const _filterService = new FilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
@@ -65,7 +65,7 @@ describe('FilterService', () => {
 
   it('reports 100% when filter is fresh', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 360, resetMonths: 12 });
-    const filterService = new FilterService(fakeAccessory);
+    const _filterService = new FilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
@@ -74,7 +74,7 @@ describe('FilterService', () => {
 
   it('reports 0% when filter is expired', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: 0, resetMonths: 12 });
-    const filterService = new FilterService(fakeAccessory);
+    const _filterService = new FilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
@@ -83,7 +83,7 @@ describe('FilterService', () => {
 
   it('clamps negative remainingDays to 0%', () => {
     const { fakeAccessory, platform } = buildTestAccessory({ remainingDays: -10, resetMonths: 12 });
-    const filterService = new FilterService(fakeAccessory);
+    const _filterService = new FilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     const level = service?.getCharacteristic(platform.Characteristic.FilterLifeLevel);
@@ -106,10 +106,32 @@ describe('FilterService', () => {
     // Clear settings
     const unitState = fakeAccessory.unitState;
     (unitState as unknown as { _settings: null })._settings = null;
-    const filterService = new FilterService(fakeAccessory);
+    const _filterService = new FilterService(fakeAccessory);
 
     const service = fakeAccessory.accessory.getService('Filter') as unknown as MockService;
     expect(service?.getCharacteristic(platform.Characteristic.FilterChangeIndication).simulateGet()).toBe(0);
     expect(service?.getCharacteristic(platform.Characteristic.FilterLifeLevel).simulateGet()).toBe(100);
+  });
+
+  it('handles missing fan service gracefully (no linked service)', () => {
+    // Create accessory WITHOUT adding Fanv2 first — filter should not throw
+    const settings = createMockSettings({ filter: { remainingDays: 180, resetMonths: 12 } });
+    const mockClient = {} as unknown as EnviroventClient;
+    const { platform, accessory } = createMockAccessory();
+    // Deliberately NOT adding Fanv2 service here
+
+    const unitState = new UnitState(mockClient, { failureThreshold: 3 });
+    (unitState as unknown as { _settings: typeof settings })._settings = settings;
+
+    const fakeAccessory = {
+      platform,
+      accessory,
+      client: mockClient,
+      commandQueue: new CommandQueue({ retries: 0 }),
+      unitState,
+    } as unknown as EnviroventAccessory;
+
+    // Should not throw even without fan service to link to
+    expect(() => new FilterService(fakeAccessory)).not.toThrow();
   });
 });

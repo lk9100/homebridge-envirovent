@@ -136,26 +136,13 @@ export class UnitState extends EventEmitter {
 }
 
 /**
- * Shallow comparison of two PivSettings objects.
- * Compares the fields that matter for HomeKit state updates.
+ * Structural comparison of two PivSettings objects.
+ * Uses JSON.stringify — safe because both objects are produced by the same
+ * parser (parseSettings) or spread-based optimistic patches, guaranteeing
+ * consistent key ordering. Automatically covers new fields added to PivSettings.
  */
-function settingsEqual(a: PivSettings | null, b: PivSettings | null): boolean {
+const settingsEqual = (a: PivSettings | null, b: PivSettings | null): boolean => {
   if (a === b) return true;
   if (!a || !b) return false;
-
-  return (
-    a.airflow.mode === b.airflow.mode &&
-    a.airflow.value === b.airflow.value &&
-    a.airflow.active === b.airflow.active &&
-    a.boost.enabled === b.boost.enabled &&
-    a.boost.mins === b.boost.mins &&
-    a.heater.autoActive === b.heater.autoActive &&
-    a.heater.temperature === b.heater.temperature &&
-    a.filter.remainingDays === b.filter.remainingDays &&
-    a.filter.resetMonths === b.filter.resetMonths &&
-    a.summerBypass.active === b.summerBypass.active &&
-    a.summerBypass.summerShutdown === b.summerBypass.summerShutdown &&
-    a.summerBypass.temperature === b.summerBypass.temperature &&
-    a.hoursRun === b.hoursRun
-  );
-}
+  return JSON.stringify(a) === JSON.stringify(b);
+};

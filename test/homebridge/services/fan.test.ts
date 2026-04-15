@@ -12,18 +12,18 @@ const UNIT_MAX = 100;
 const UNIT_RANGE = UNIT_MAX - UNIT_VAR_MIN; // 76
 
 /** Convert unit percentage to expected HomeKit percentage. */
-function expectedHK(unitPercent: number): number {
+const expectedHK = (unitPercent: number): number => {
   const clamped = Math.max(UNIT_VAR_MIN, Math.min(UNIT_MAX, unitPercent));
   return Math.round(((clamped - UNIT_VAR_MIN) / UNIT_RANGE) * 100);
-}
+};
 
 /** Convert HomeKit percentage to expected unit percentage. */
-function expectedUnit(hkPercent: number): number {
+const expectedUnit = (hkPercent: number): number => {
   const clamped = Math.max(0, Math.min(100, hkPercent));
   return Math.round(UNIT_VAR_MIN + (clamped / 100) * UNIT_RANGE);
-}
+};
 
-function buildTestAccessory(settingsOverrides?: Parameters<typeof createMockSettings>[0]) {
+const buildTestAccessory = (settingsOverrides?: Parameters<typeof createMockSettings>[0]) => {
   const settings = createMockSettings(settingsOverrides);
   const mockClient = {
     getSettings: vi.fn(),
@@ -45,11 +45,10 @@ function buildTestAccessory(settingsOverrides?: Parameters<typeof createMockSett
   } as unknown as EnviroventAccessory;
 
   return { fakeAccessory, platform, unitState, mockClient };
-}
+};
 
-function getService(fakeAccessory: EnviroventAccessory) {
-  return fakeAccessory.accessory.getService('Fan') as unknown as MockService;
-}
+const getService = (fakeAccessory: EnviroventAccessory) =>
+  fakeAccessory.accessory.getService('Fan') as unknown as MockService;
 
 // ─── Active characteristic ──────────────────────────────────────────
 

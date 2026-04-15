@@ -22,14 +22,14 @@ import {
   parseGetCurrentSettings,
   parseCommandResponse,
 } from './commands.js';
-import type {
-  CommandResponse,
+import {
   DEFAULTS,
-  EnviroventClientConfig,
-  GetCurrentSettingsResponse,
-  SetHomeSettingsParams,
-  SetInstallerSettingsParams,
-  SpigotType,
+  type CommandResponse,
+  type EnviroventClientConfig,
+  type GetCurrentSettingsResponse,
+  type SetHomeSettingsParams,
+  type SetInstallerSettingsParams,
+  type SpigotType,
 } from './types.js';
 
 export class EnviroventClient {
@@ -41,8 +41,8 @@ export class EnviroventClient {
 
   constructor(config: EnviroventClientConfig) {
     this.host = config.host;
-    this.port = config.port ?? 1337;
-    this.timeout = config.timeout ?? 10_000;
+    this.port = config.port ?? DEFAULTS.PORT;
+    this.timeout = config.timeout ?? DEFAULTS.TIMEOUT;
   }
 
   // ─── Read commands ──────────────────────────────────────────────

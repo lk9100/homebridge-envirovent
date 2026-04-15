@@ -1,6 +1,7 @@
-import type { PlatformAccessory, Service } from 'homebridge';
+import type { PlatformAccessory } from 'homebridge';
 import type { EnviroventPlatform } from './platform.js';
 import { EnviroventClient } from '../api/client.js';
+import { DEFAULTS } from '../api/types.js';
 import { CommandQueue } from '../state/command-queue.js';
 import { UnitState } from '../state/unit-state.js';
 import { FanService } from './services/fan.js';
@@ -8,7 +9,6 @@ import { BoostService } from './services/boost.js';
 import { FilterService } from './services/filter.js';
 
 const MIN_POLL_INTERVAL = 5;
-const DEFAULT_POLL_INTERVAL = 5;
 
 export class EnviroventAccessory {
   public readonly client: EnviroventClient;
@@ -23,7 +23,7 @@ export class EnviroventAccessory {
     public readonly accessory: PlatformAccessory,
   ) {
     const host = accessory.context.host as string;
-    const port = (accessory.context.port as number) ?? 1337;
+    const port = (accessory.context.port as number) ?? DEFAULTS.PORT;
 
     this.client = new EnviroventClient({ host, port });
     this.commandQueue = new CommandQueue({ retries: 1, retryDelay: 1000 });
@@ -71,7 +71,7 @@ export class EnviroventAccessory {
   }
 
   private startPolling(): void {
-    const configInterval = this.platform.config.pollInterval ?? DEFAULT_POLL_INTERVAL;
+    const configInterval = this.platform.config.pollInterval ?? MIN_POLL_INTERVAL;
     const intervalSec = Math.max(configInterval, MIN_POLL_INTERVAL);
     const intervalMs = intervalSec * 1000;
 
