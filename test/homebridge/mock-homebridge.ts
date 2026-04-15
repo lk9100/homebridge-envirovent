@@ -140,12 +140,13 @@ export const createMockAccessory = (platformOverrides?: Partial<ReturnType<typeo
     getService(type: string) {
       return services.get(type) ?? null;
     },
-    addService(_type: string, name: string, subtype?: string) {
-      const key = subtype ?? name;
+    addService(type: string, name: string, subtype?: string) {
       const service = createMockService(name);
-      services.set(key, service);
+      // Register by type so getService(platform.Service.Fanv2) works
+      services.set(type, service);
       // Also register by name for getService('Boost') lookups
       services.set(name, service);
+      if (subtype) services.set(subtype, service);
       return service;
     },
   };

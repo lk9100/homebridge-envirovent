@@ -84,6 +84,62 @@ describe('BoostService', () => {
     expect(on?.getValue()).toBe(true);
   });
 
+  it('reports On=false when settings are null', () => {
+    const settings = undefined;
+    const mockClient = {
+      getSettings: vi.fn(),
+      setBoost: vi.fn().mockResolvedValue({ success: true }),
+    } as unknown as EnviroventClient;
+
+    const { platform, accessory } = createMockAccessory();
+    const unitState = createUnitState(mockClient, { failureThreshold: 3 });
+
+    const fakeAccessory = {
+      platform,
+      accessory,
+      client: mockClient,
+      commandQueue: createCommandQueue({ retries: 0 }),
+      unitState,
+    } as unknown as EnviroventAccessoryContext;
+
+    createBoostService(fakeAccessory);
+
+    const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
+    const on = service?.getCharacteristic(platform.Characteristic.On);
+    expect(on?.simulateGet()).toBe(false);
+  });
+
+  it('uses default mins (20) for optimistic update when settings are null during setOn', async () => {
+    // Start with settings, then clear them before calling setOn
+    const mockClient = {
+      getSettings: vi.fn(),
+      setBoost: vi.fn().mockResolvedValue({ success: true }),
+    } as unknown as EnviroventClient;
+
+    const { platform, accessory } = createMockAccessory();
+    // No initialSettings — settings is null
+    const unitState = createUnitState(mockClient, { failureThreshold: 3 });
+
+    const fakeAccessory = {
+      platform,
+      accessory,
+      client: mockClient,
+      commandQueue: createCommandQueue({ retries: 0 }),
+      unitState,
+    } as unknown as EnviroventAccessoryContext;
+
+    createBoostService(fakeAccessory);
+
+    const service = fakeAccessory.accessory.getService('Boost') as unknown as MockService;
+    const on = service?.getCharacteristic(platform.Characteristic.On);
+    await on?.simulateSet(true);
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockClient.setBoost).toHaveBeenCalledWith(true);
+    // applyOptimistic is a no-op when settings are null, so settings should remain null
+    expect(unitState.settings).toBeNull();
+  });
+
   it('logs error and does not apply optimistic update when setBoost fails', async () => {
     const { fakeAccessory, platform, mockClient } = buildTestAccessory(false);
     (mockClient.setBoost as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('TCP timeout'));

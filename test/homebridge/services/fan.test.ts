@@ -487,6 +487,36 @@ describe('FanService — HK value caching', () => {
   });
 });
 
+// ─── dispose() ─────────────────────────────────────────────────────
+
+describe('FanService — dispose()', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('clears active debounce timer on dispose', async () => {
+    const { fakeAccessory, mockClient } = buildTestAccessory();
+    const fanService = createFanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    // Start a debounce timer by setting rotation speed
+    await speed.simulateSet(50);
+    // Dispose before debounce fires
+    fanService.dispose();
+    // Advance past the debounce window
+    await vi.advanceTimersByTimeAsync(500);
+    // The debounced send should NOT have fired
+    expect(mockClient.setHomeSettings).not.toHaveBeenCalled();
+  });
+
+  it('dispose is safe to call when no debounce timer is active', () => {
+    const { fakeAccessory } = buildTestAccessory();
+    const fanService = createFanService(fakeAccessory);
+    expect(() => fanService.dispose()).not.toThrow();
+  });
+});
+
 // ─── Round-trip stability ───────────────────────────────────────────
 
 describe('FanService — round-trip stability (mapping)', () => {

@@ -123,6 +123,7 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
   };
 
   const sendAirflowUpdate = async (unitPercent: number, currentSettings: NonNullable<typeof unitState.settings>): Promise<void> => {
+    /* v8 ignore next -- defensive guard; callers always check settings before calling */
     if (!currentSettings) return;
 
     try {

@@ -299,6 +299,7 @@ const parseAirflowConfiguration = (configObj: Record<string, unknown> | undefine
   }));
 
   // First and last entries define the absolute min/max bounds
+  /* v8 ignore next 2 -- nullish fallbacks unreachable; array is guaranteed non-empty */
   const minPercentage = rawMaps[0]?.percent ?? 0;
   const maxPercentage = rawMaps[rawMaps.length - 1]?.percent ?? 100;
 

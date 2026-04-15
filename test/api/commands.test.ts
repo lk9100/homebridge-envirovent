@@ -225,6 +225,58 @@ describe('parseGetCurrentSettings', () => {
     expect(result.settings.airflowConfiguration.varMinPercentage).toBe(0);
   });
 
+  it('handles airflowConfiguration with empty maps array', () => {
+    const response = { ...pivSettingsResponse, airflowConfiguration: { maps: [] } };
+    const result = parseGetCurrentSettings(JSON.stringify(response));
+    expect(result.settings.airflowConfiguration.maps).toEqual([]);
+    expect(result.settings.airflowConfiguration.minPercentage).toBe(0);
+    expect(result.settings.airflowConfiguration.maxPercentage).toBe(100);
+  });
+
+  it('handles airflowConfiguration with non-array maps', () => {
+    const response = { ...pivSettingsResponse, airflowConfiguration: { maps: 'not-an-array' } };
+    const result = parseGetCurrentSettings(JSON.stringify(response));
+    expect(result.settings.airflowConfiguration.maps).toEqual([]);
+  });
+
+  it('handles missing unitType with default "unknown"', () => {
+    const { unitType: _, ...noUnitType } = pivSettingsResponse;
+    const response = { ...noUnitType, success: 1, settings: pivSettingsResponse.settings };
+    const result = parseGetCurrentSettings(JSON.stringify(response));
+    expect(result.unitType).toBe('unknown');
+  });
+
+  it('handles airflowConfiguration with single map entry', () => {
+    const response = {
+      ...pivSettingsResponse,
+      airflowConfiguration: {
+        maps: [{ mark: 1, percent: 50 }],
+      },
+    };
+    const result = parseGetCurrentSettings(JSON.stringify(response));
+    expect(result.settings.airflowConfiguration.minPercentage).toBe(50);
+    expect(result.settings.airflowConfiguration.maxPercentage).toBe(50);
+  });
+
+  it('handles airflowConfiguration with only two maps (no selectable presets)', () => {
+    const response = {
+      ...pivSettingsResponse,
+      airflowConfiguration: {
+        maps: [
+          { mark: 1, percent: 10 },
+          { mark: 2, percent: 90 },
+        ],
+      },
+    };
+    const result = parseGetCurrentSettings(JSON.stringify(response));
+    // With only 2 entries, slice(1, -1) = [], so maps is empty
+    expect(result.settings.airflowConfiguration.maps).toEqual([]);
+    expect(result.settings.airflowConfiguration.minPercentage).toBe(10);
+    expect(result.settings.airflowConfiguration.maxPercentage).toBe(90);
+    // varMinPercentage falls back to minPercentage when maps is empty
+    expect(result.settings.airflowConfiguration.varMinPercentage).toBe(10);
+  });
+
   it('handles missing sub-objects with defaults', () => {
     const response = { success: 1, unitType: 'piv', settings: {} };
     const result = parseGetCurrentSettings(JSON.stringify(response));

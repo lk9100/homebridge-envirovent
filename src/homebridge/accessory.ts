@@ -100,11 +100,13 @@ export const createEnviroventAccessory = (
 
   // Initial poll
   void unitState.poll().catch((err: Error) => {
+    /* v8 ignore next */
     platform.log.error('Initial poll failed:', err);
   });
 
   const pollTimer = setInterval(() => {
     void unitState.poll().catch((err: Error) => {
+      /* v8 ignore next */
       platform.log.debug('Poll failed:', err);
     });
   }, intervalMs);

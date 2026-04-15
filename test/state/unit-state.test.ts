@@ -289,6 +289,43 @@ describe('UnitState', () => {
   });
 });
 
+// ─── dispose ────────────────────────────────────────────────────────
+
+describe('UnitState — dispose', () => {
+  it('removes all event listeners', async () => {
+    const state = createUnitState(createMockClient());
+    const handler = vi.fn();
+    state.on('stateChanged', handler);
+
+    state.dispose();
+
+    // After dispose, events should not fire
+    await state.poll();
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+// ─── applyOptimistic edge cases ─────────────────────────────────────
+
+describe('UnitState — applyOptimistic edge cases', () => {
+  it('handles primitive field replacement (non-object patch values)', async () => {
+    const state = createUnitState(createMockClient());
+    await state.poll();
+
+    state.applyOptimistic({ hoursRun: 9999 });
+    expect(state.settings!.hoursRun).toBe(9999);
+  });
+
+  it('skips undefined values in patch', async () => {
+    const state = createUnitState(createMockClient());
+    await state.poll();
+
+    const original = state.settings!.hoursRun;
+    state.applyOptimistic({ hoursRun: undefined } as Partial<PivSettings>);
+    expect(state.settings!.hoursRun).toBe(original);
+  });
+});
+
 // ─── settingsEqual coverage ───────────────────────────────────────
 
 describe('UnitState — settingsEqual detects all field changes', () => {
