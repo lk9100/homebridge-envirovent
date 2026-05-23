@@ -7,6 +7,9 @@ coverage/
 .idea/
 *.iml
 
-# MemPalace per-project files (issue #185)
+# Local agent memory/tooling
+.serena/
+.mempalace/
 mempalace.yaml
 entities.json
+known_entities.json
