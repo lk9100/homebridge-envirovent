@@ -12,7 +12,7 @@ Homebridge plugin for **Envirovent Atmos PIV** (Positive Input Ventilation) unit
 
 ## Requirements
 
-- Node.js 22+
+- Node.js 24+
 - Homebridge 1.8+ or 2.0 beta
 - Envirovent Atmos PIV unit connected to your home WiFi
 

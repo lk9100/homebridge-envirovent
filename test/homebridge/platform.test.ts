@@ -191,7 +191,7 @@ describe('EnviroventPlatform', () => {
     api._emit('didFinishLaunching');
 
     // The mock platformAccessory constructor returns an object with context
-    const createdAccessory = (api.platformAccessory as ReturnType<typeof vi.fn>).mock.results[0].value;
+    const createdAccessory = (api.platformAccessory as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
     expect(createdAccessory.context.host).toBe('10.0.0.1');
     expect(createdAccessory.context.port).toBe(5000);
   });

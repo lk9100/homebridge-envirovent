@@ -321,7 +321,7 @@ describe('UnitState — applyOptimistic edge cases', () => {
     await state.poll();
 
     const original = state.settings!.hoursRun;
-    state.applyOptimistic({ hoursRun: undefined } as Partial<PivSettings>);
+    state.applyOptimistic({ hoursRun: undefined } as unknown as Partial<PivSettings>);
     expect(state.settings!.hoursRun).toBe(original);
   });
 });

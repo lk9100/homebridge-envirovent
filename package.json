@@ -1,12 +1,18 @@
 {
   "name": "homebridge-envirovent",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Homebridge plugin for Envirovent Atmos PIV ventilation units",
   "type": "module",
   "main": "dist/homebridge/index.js",
   "types": "dist/homebridge/index.d.ts",
+  "files": [
+    "dist",
+    "config.schema.json",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "engines": {
-    "node": "^22.0.0",
+    "node": ">=24.0.0",
     "homebridge": "^1.8.0 || ^2.0.0-beta.0"
   },
   "scripts": {
@@ -42,7 +48,7 @@
     "homebridge": "^1.8.0 || ^2.0.0-beta.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.12.4",
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "@typescript-eslint/parser": "^8.58.2",
     "@vitest/coverage-v8": "^3.2.4",

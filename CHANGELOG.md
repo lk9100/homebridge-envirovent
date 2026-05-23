@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.0
+
+### Refactors
+
+- Target Node.js 24+ in runtime metadata and local toolchain requirements
+- Clean up npm package release metadata for consistent publish output
+
 ## v0.3.2
 
 ### Documentation

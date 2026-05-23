@@ -15,3 +15,8 @@ eslint.config.js
 .gitignore
 coverage/
 API-FINDINGS.md
+.serena/
+.mempalace/
+mempalace.yaml
+entities.json
+known_entities.json
