@@ -23,7 +23,15 @@ const expectedUnit = (hkPercent: number): number => {
   return Math.round(UNIT_VAR_MIN + (clamped / 100) * UNIT_RANGE);
 };
 
-const buildTestAccessory = (settingsOverrides?: Parameters<typeof createMockSettings>[0] | null) => {
+// Platform override that exposes the summer shutdown switch (shown case)
+const shownSummerShutdownPlatform = {
+  config: { showBoostSwitch: true, advanced: { showSummerShutdownSwitch: true } },
+} as Parameters<typeof createMockAccessory>[0];
+
+const buildTestAccessory = (
+  settingsOverrides?: Parameters<typeof createMockSettings>[0] | null,
+  platformOverrides?: Parameters<typeof createMockAccessory>[0],
+) => {
   const settings = settingsOverrides === null ? undefined : createMockSettings(settingsOverrides);
   const mockClient = {
     getSettings: vi.fn(),
@@ -31,7 +39,7 @@ const buildTestAccessory = (settingsOverrides?: Parameters<typeof createMockSett
     setBoost: vi.fn().mockResolvedValue({ success: true }),
   } as unknown as EnviroventClient;
 
-  const { platform, accessory } = createMockAccessory();
+  const { platform, accessory } = createMockAccessory(platformOverrides);
   const unitState = createUnitState(mockClient, { failureThreshold: 3, initialSettings: settings });
 
   const fakeAccessory = {
@@ -316,6 +324,90 @@ describe('FanService — RotationSpeed (set, edge cases)', () => {
     const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(1); // Only one call, not five
     expect(calls[0][0].airflow.value).toBe(expectedUnit(50)); // The last value
+  });
+});
+
+// ─── Summer shutdown write behaviour ────────────────────────────────
+
+describe('FanService — summer shutdown write behaviour', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const lastSentSummerShutdown = (mockClient: EnviroventClient): boolean | undefined => {
+    const calls = (mockClient.setHomeSettings as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    return calls[calls.length - 1][0].summerBypass.summerShutdown;
+  };
+
+  it('hidden switch (default): never re-enables summer shutdown when unit reports it on', async () => {
+    // Default mock settings have summerBypass.summerShutdown = true
+    const { fakeAccessory, mockClient } = buildTestAccessory();
+    createFanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    await speed.simulateSet(50);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(lastSentSummerShutdown(mockClient)).toBe(false);
+  });
+
+  it('hidden switch (default): sends false when unit already reports summerShutdown false', async () => {
+    const { fakeAccessory, mockClient } = buildTestAccessory({
+      summerBypass: { active: false, temperature: 22, summerShutdown: false },
+    });
+    createFanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    await speed.simulateSet(50);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(lastSentSummerShutdown(mockClient)).toBe(false);
+  });
+
+  it('shown switch: preserves summer shutdown true (switch owns it via optimistic updates)', async () => {
+    const { fakeAccessory, mockClient } = buildTestAccessory({}, shownSummerShutdownPlatform);
+    createFanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    await speed.simulateSet(50);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(lastSentSummerShutdown(mockClient)).toBe(true);
+  });
+
+  it('shown switch: preserves summer shutdown false', async () => {
+    const { fakeAccessory, mockClient } = buildTestAccessory(
+      { summerBypass: { active: false, temperature: 22, summerShutdown: false } },
+      shownSummerShutdownPlatform,
+    );
+    createFanService(fakeAccessory);
+    const speed = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.RotationSpeed,
+    );
+
+    await speed.simulateSet(50);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(lastSentSummerShutdown(mockClient)).toBe(false);
+  });
+
+  it('setActive(0) minimum-speed path also sends summerShutdown false when hidden and unit says true', async () => {
+    const { fakeAccessory, mockClient } = buildTestAccessory();
+    createFanService(fakeAccessory);
+    const active = getService(fakeAccessory).getCharacteristic(
+      fakeAccessory.platform.Characteristic.Active,
+    );
+
+    await active.simulateSet(0);
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(lastSentSummerShutdown(mockClient)).toBe(false);
   });
 });
 

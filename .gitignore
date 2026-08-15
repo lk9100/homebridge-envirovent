@@ -13,3 +13,6 @@ coverage/
 mempalace.yaml
 entities.json
 known_entities.json
+
+.worktrees/
+work/
