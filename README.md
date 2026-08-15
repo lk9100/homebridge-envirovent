@@ -56,6 +56,8 @@ Add to your Homebridge `config.json`:
 | `showBoostSwitch` | No | `true` | Expose boost as a separate switch for scenes/automations |
 | `advanced.showSummerShutdownSwitch` | No | `false` | Expose a switch to enable/disable summer shutdown mode |
 
+When the Summer Shutdown switch is hidden (the default), the plugin actively keeps summer shutdown off: if the unit reports it on, the plugin disables it — including when the connection is restored — and fan speed changes never re-enable it.
+
 ### Finding your unit's IP
 
 Your Atmos PIV unit advertises itself via mDNS (`_http._tcp`). You can find its IP address through:
