@@ -6,6 +6,7 @@ Homebridge plugin for **Envirovent Atmos PIV** (Positive Input Ventilation) unit
 
 - **Fan speed control** — continuous slider mapped to the unit's 24–100% airflow range
 - **Boost mode** — toggle switch, usable in HomeKit scenes and automations
+- **Summer shutdown** — optional toggle switch that stops airflow on hot days, usable in HomeKit scenes and automations
 - **Filter status** — shows filter life remaining and alerts when replacement is needed
 - **Local-only** — communicates directly with the unit over your LAN (TCP port 1337)
 - **No polling flood** — configurable poll interval with debounced commands
@@ -50,6 +51,9 @@ Add to your Homebridge `config.json`:
 | `port` | No | `1337` | TCP port |
 | `pollInterval` | No | `5` | Seconds between status polls (min: 5) |
 | `showBoostSwitch` | No | `true` | Expose boost as a separate switch for scenes/automations |
+| `advanced.showSummerShutdownSwitch` | No | `false` | Expose a switch to enable/disable summer shutdown mode |
+
+When the Summer Shutdown switch is hidden (the default), the plugin actively keeps summer shutdown off: if the unit reports it on, the plugin disables it — including when the connection is restored — and fan speed changes never re-enable it.
 
 ### Finding your unit's IP
 
@@ -67,6 +71,7 @@ Your Atmos PIV unit advertises itself via mDNS (`_http._tcp`). You can find its 
 |---|---|
 | **Fanv2** | Main fan tile with speed slider. 0% = unit minimum (24%), 100% = maximum airflow. |
 | **Switch** (Boost) | Toggles boost mode. Auto-turns off when the unit's boost timer expires. Great for scenes like "Cooking Mode". |
+| **Switch** (Summer Shutdown) | Toggles summer shutdown mode. When on, the unit stops airflow while the intake air temperature rises above the set threshold (18–28 °C). Hidden by default. |
 | **FilterMaintenance** | Shows filter life percentage and alerts when the filter needs replacing. |
 
 ## How it works
@@ -107,7 +112,8 @@ src/
     └── services/       # HomeKit service handlers
         ├── fan.ts      # Fanv2 — airflow speed
         ├── boost.ts    # Switch — boost toggle
-        └── filter.ts   # FilterMaintenance — filter status
+        ├── filter.ts   # FilterMaintenance — filter status
+        └── summer-shutdown.ts # Switch — summer shutdown toggle
 ```
 
 The `api/` and `state/` layers have no Homebridge dependencies and can be used as a standalone client library.
