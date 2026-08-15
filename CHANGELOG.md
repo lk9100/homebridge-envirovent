@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.0
+
+### Features
+
+- Add optional **Summer Shutdown** HomeKit switch (`advanced.showSummerShutdownSwitch`) — toggles summer shutdown, which stops airflow when intake air temperature rises above the configured threshold (18–28°C)
+- Keep summer shutdown **off by default** — when the switch is hidden, the plugin actively disables summer shutdown (including on connection restore) and fan speed changes never re-enable it
+
 ## v0.4.0
 
 ### Refactors
