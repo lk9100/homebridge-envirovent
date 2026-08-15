@@ -16,6 +16,7 @@ vi.mock('../../src/api/client.js', () => ({
     }),
     setHomeSettings: vi.fn().mockResolvedValue({ success: true }),
     setBoost: vi.fn().mockResolvedValue({ success: true }),
+    setSummerBypass: vi.fn().mockResolvedValue({ success: true }),
   })),
 }));
 
@@ -39,11 +40,18 @@ vi.mock('../../src/homebridge/services/filter.js', () => ({
   })),
 }));
 
+vi.mock('../../src/homebridge/services/summer-shutdown.js', () => ({
+  createSummerShutdownService: vi.fn(() => ({
+    update: vi.fn(),
+  })),
+}));
+
 const buildMockPlatformAndAccessory = (overrides?: {
   host?: string | undefined;
   port?: number | undefined;
   showBoostSwitch?: boolean;
   pollInterval?: number;
+  advanced?: { showSummerShutdownSwitch?: boolean } | undefined;
 }) => {
   const basePlatform = createMockPlatform();
   const platform = {
@@ -52,6 +60,7 @@ const buildMockPlatformAndAccessory = (overrides?: {
       ...basePlatform.config,
       showBoostSwitch: overrides?.showBoostSwitch ?? true,
       pollInterval: overrides?.pollInterval,
+      advanced: overrides?.advanced,
     },
     Service: {
       ...basePlatform.Service,
@@ -90,6 +99,14 @@ const buildMockPlatformAndAccessory = (overrides?: {
   } as unknown as PlatformAccessory;
 
   return { platform, accessory, infoService };
+};
+
+// Flush the command queue's microtask chain (enqueue -> retry -> then/catch)
+// without relying on real timers.
+const flushPromises = async (): Promise<void> => {
+  for (let i = 0; i < 20; i++) {
+    await Promise.resolve();
+  }
 };
 
 // ─── Tests ────────────────────────────────────────────────────────────
@@ -220,6 +237,239 @@ describe('createEnviroventAccessory', () => {
     const ctx = createEnviroventAccessory(platform, accessory);
 
     expect(createBoostService).not.toHaveBeenCalled();
+
+    ctx.dispose();
+  });
+
+  it('registers summer shutdown service when advanced.showSummerShutdownSwitch is true', async () => {
+    const { createSummerShutdownService } = await import('../../src/homebridge/services/summer-shutdown.js');
+    (createSummerShutdownService as ReturnType<typeof vi.fn>).mockClear();
+
+    const { platform, accessory } = buildMockPlatformAndAccessory({ advanced: { showSummerShutdownSwitch: true } });
+    const ctx = createEnviroventAccessory(platform, accessory);
+
+    expect(createSummerShutdownService).toHaveBeenCalled();
+
+    ctx.dispose();
+  });
+
+  it('does not register summer shutdown service when advanced.showSummerShutdownSwitch is false', async () => {
+    const { createSummerShutdownService } = await import('../../src/homebridge/services/summer-shutdown.js');
+    (createSummerShutdownService as ReturnType<typeof vi.fn>).mockClear();
+
+    const { platform, accessory } = buildMockPlatformAndAccessory({ advanced: { showSummerShutdownSwitch: false } });
+    const ctx = createEnviroventAccessory(platform, accessory);
+
+    expect(createSummerShutdownService).not.toHaveBeenCalled();
+
+    ctx.dispose();
+  });
+
+  it('does not register summer shutdown service when advanced config is absent (default hidden)', async () => {
+    const { createSummerShutdownService } = await import('../../src/homebridge/services/summer-shutdown.js');
+    (createSummerShutdownService as ReturnType<typeof vi.fn>).mockClear();
+
+    const basePlatform = createMockPlatform();
+    const platform = {
+      ...basePlatform,
+      config: { /* advanced intentionally omitted */ },
+      Characteristic: {
+        ...basePlatform.Characteristic,
+        Manufacturer: { UUID: 'Manufacturer' },
+        Model: { UUID: 'Model' },
+        SerialNumber: { UUID: 'SerialNumber' },
+      },
+    } as unknown as EnviroventPlatform;
+
+    const infoService = {
+      setCharacteristic(_type: unknown, _value: unknown) { return infoService; },
+    };
+    const accessory = {
+      displayName: 'Test',
+      context: { host: '10.0.0.1' },
+      getService(type: string) { return type === 'AccessoryInformation' ? infoService : null; },
+      addService: vi.fn(),
+    } as unknown as PlatformAccessory;
+
+    const ctx = createEnviroventAccessory(platform, accessory);
+
+    expect(createSummerShutdownService).not.toHaveBeenCalled();
+
+    ctx.dispose();
+  });
+
+  it('enforces summer shutdown off when hidden and the unit reports it enabled', async () => {
+    const { createEnviroventClient } = await import('../../src/api/client.js');
+    const mockClient = {
+      getSettings: vi.fn().mockResolvedValue({
+        success: true,
+        unitType: 'piv',
+        settings: createMockSettings(),
+      }),
+      setHomeSettings: vi.fn().mockResolvedValue({ success: true }),
+      setBoost: vi.fn().mockResolvedValue({ success: true }),
+      setSummerBypass: vi.fn().mockResolvedValue({ success: true }),
+    };
+    (createEnviroventClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockClient);
+
+    const { platform, accessory } = buildMockPlatformAndAccessory();
+    const ctx = createEnviroventAccessory(platform, accessory);
+    await flushPromises();
+
+    expect(mockClient.setSummerBypass).toHaveBeenCalledTimes(1);
+    expect(mockClient.setSummerBypass).toHaveBeenCalledWith(false);
+    expect(ctx.unitState.settings!.summerBypass.summerShutdown).toBe(false);
+    expect(platform.log.info).toHaveBeenCalledWith(expect.stringContaining('Summer shutdown disabled'));
+
+    ctx.dispose();
+  });
+
+  it('does not enforce when hidden and the unit reports summer shutdown off', async () => {
+    const { createEnviroventClient } = await import('../../src/api/client.js');
+    const mockClient = {
+      getSettings: vi.fn().mockResolvedValue({
+        success: true,
+        unitType: 'piv',
+        settings: createMockSettings({
+          summerBypass: { active: false, temperature: 22, summerShutdown: false },
+        }),
+      }),
+      setHomeSettings: vi.fn().mockResolvedValue({ success: true }),
+      setBoost: vi.fn().mockResolvedValue({ success: true }),
+      setSummerBypass: vi.fn().mockResolvedValue({ success: true }),
+    };
+    (createEnviroventClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockClient);
+
+    const { platform, accessory } = buildMockPlatformAndAccessory();
+    const ctx = createEnviroventAccessory(platform, accessory);
+    await flushPromises();
+    ctx.unitState.emit('stateChanged', createMockSettings({
+      summerBypass: { active: false, temperature: 22, summerShutdown: false },
+    }));
+    await flushPromises();
+
+    expect(mockClient.setSummerBypass).not.toHaveBeenCalled();
+
+    ctx.dispose();
+  });
+
+  it('does not enforce when the switch is shown even if the unit reports summer shutdown enabled', async () => {
+    const { createEnviroventClient } = await import('../../src/api/client.js');
+    const mockClient = {
+      getSettings: vi.fn().mockResolvedValue({
+        success: true,
+        unitType: 'piv',
+        settings: createMockSettings(),
+      }),
+      setHomeSettings: vi.fn().mockResolvedValue({ success: true }),
+      setBoost: vi.fn().mockResolvedValue({ success: true }),
+      setSummerBypass: vi.fn().mockResolvedValue({ success: true }),
+    };
+    (createEnviroventClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockClient);
+
+    const { platform, accessory } = buildMockPlatformAndAccessory({ advanced: { showSummerShutdownSwitch: true } });
+    const ctx = createEnviroventAccessory(platform, accessory);
+    await flushPromises();
+
+    expect(mockClient.setSummerBypass).not.toHaveBeenCalled();
+
+    ctx.dispose();
+  });
+
+  it('re-enforces summer shutdown off on connectionRestored while it is still enabled', async () => {
+    const { createEnviroventClient } = await import('../../src/api/client.js');
+    const mockClient = {
+      getSettings: vi.fn().mockResolvedValue({
+        success: true,
+        unitType: 'piv',
+        settings: createMockSettings(),
+      }),
+      setHomeSettings: vi.fn().mockResolvedValue({ success: true }),
+      setBoost: vi.fn().mockResolvedValue({ success: true }),
+      setSummerBypass: vi.fn()
+        .mockRejectedValueOnce(new Error('TCP timeout'))
+        .mockRejectedValueOnce(new Error('TCP timeout'))
+        .mockResolvedValue({ success: true }),
+    };
+    (createEnviroventClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockClient);
+
+    const { platform, accessory } = buildMockPlatformAndAccessory();
+    const ctx = createEnviroventAccessory(platform, accessory);
+
+    // First enforcement attempt fails (call + retry) — unit state stays enabled
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushPromises();
+    expect(ctx.unitState.settings!.summerBypass.summerShutdown).toBe(true);
+
+    // Connection restored while the unit still reports the switch on — enforce again
+    mockClient.setSummerBypass.mockClear();
+    ctx.unitState.emit('connectionRestored');
+    await flushPromises();
+
+    expect(mockClient.setSummerBypass).toHaveBeenCalledTimes(1);
+    expect(mockClient.setSummerBypass).toHaveBeenCalledWith(false);
+    expect(ctx.unitState.settings!.summerBypass.summerShutdown).toBe(false);
+    expect(platform.log.info).toHaveBeenCalledWith(expect.stringContaining('Summer shutdown disabled'));
+
+    ctx.dispose();
+  });
+
+  it('logs a warning and keeps the unit state when enforcement fails', async () => {
+    const { createEnviroventClient } = await import('../../src/api/client.js');
+    const mockClient = {
+      getSettings: vi.fn().mockResolvedValue({
+        success: true,
+        unitType: 'piv',
+        settings: createMockSettings(),
+      }),
+      setHomeSettings: vi.fn().mockResolvedValue({ success: true }),
+      setBoost: vi.fn().mockResolvedValue({ success: true }),
+      setSummerBypass: vi.fn().mockRejectedValue(new Error('TCP timeout')),
+    };
+    (createEnviroventClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockClient);
+
+    const { platform, accessory } = buildMockPlatformAndAccessory();
+    const ctx = createEnviroventAccessory(platform, accessory);
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(1000); // command queue retry delay
+    await flushPromises();
+
+    expect(platform.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Could not disable summer shutdown'),
+      expect.any(Error),
+    );
+    // No optimistic update on failure — state stays enabled so the next event retries
+    expect(ctx.unitState.settings!.summerBypass.summerShutdown).toBe(true);
+
+    ctx.dispose();
+  });
+
+  it('does not re-enforce on subsequent events after a successful flip', async () => {
+    const { createEnviroventClient } = await import('../../src/api/client.js');
+    const mockClient = {
+      getSettings: vi.fn().mockResolvedValue({
+        success: true,
+        unitType: 'piv',
+        settings: createMockSettings(),
+      }),
+      setHomeSettings: vi.fn().mockResolvedValue({ success: true }),
+      setBoost: vi.fn().mockResolvedValue({ success: true }),
+      setSummerBypass: vi.fn().mockResolvedValue({ success: true }),
+    };
+    (createEnviroventClient as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockClient);
+
+    const { platform, accessory } = buildMockPlatformAndAccessory();
+    const ctx = createEnviroventAccessory(platform, accessory);
+    await flushPromises();
+    expect(mockClient.setSummerBypass).toHaveBeenCalledTimes(1);
+
+    // Even a stale event payload reporting the switch on must not trigger a second call
+    ctx.unitState.emit('stateChanged', createMockSettings());
+    ctx.unitState.emit('connectionRestored');
+    await flushPromises();
+
+    expect(mockClient.setSummerBypass).toHaveBeenCalledTimes(1);
 
     ctx.dispose();
   });
