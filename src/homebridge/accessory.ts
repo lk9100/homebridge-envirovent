@@ -10,6 +10,7 @@ import { createUnitState } from '../state/unit-state.js';
 import { createFanService } from './services/fan.js';
 import { createBoostService } from './services/boost.js';
 import { createFilterService } from './services/filter.js';
+import { createSummerShutdownService } from './services/summer-shutdown.js';
 
 /** Shape shared between the accessory and all service factories. */
 export interface EnviroventAccessoryContext {
@@ -67,13 +68,50 @@ export const createEnviroventAccessory = (
     services.push(createBoostService(ctx));
   }
 
+  const showSummerShutdown = platform.config.advanced?.showSummerShutdownSwitch ?? false;
+  if (showSummerShutdown) {
+    services.push(createSummerShutdownService(ctx));
+  }
+
   // Register service dispose functions
   for (const service of services) {
     if (service.dispose) disposables.push(service.dispose);
   }
 
+  // ─── Summer shutdown enforcement ─────────────────────────────
+  // When the switch is hidden (default), the accessory keeps summer shutdown
+  // off: if the unit reports it enabled, disable it via the API. Runs on every
+  // state change and again after a connection restore, so a failed write is
+  // retried on the next event (self-healing).
+  const enforceSummerShutdownOff = (): void => {
+    if (showSummerShutdown) return;
+    const settings = unitState.settings;
+    if (settings?.summerBypass.summerShutdown !== true) return;
+
+    try {
+      void commandQueue
+        .enqueue(async () => client.setSummerBypass(false))
+        .then(() => {
+          unitState.applyOptimistic({
+            summerBypass: {
+              active: settings.summerBypass.active,
+              temperature: settings.summerBypass.temperature,
+              summerShutdown: false,
+            },
+          });
+          platform.log.info(`🌞 Summer shutdown disabled on ${accessory.displayName} (switch hidden)`);
+        })
+        .catch((err: unknown) => {
+          platform.log.warn(`⚠️ Could not disable summer shutdown on ${accessory.displayName}:`, err);
+        });
+    } catch (err) {
+      platform.log.warn(`⚠️ Could not disable summer shutdown on ${accessory.displayName}:`, err);
+    }
+  };
+
   // ─── State event handlers ──────────────────────────────────
   unitState.on('stateChanged', () => {
+    enforceSummerShutdownOff();
     for (const service of services) {
       service.update();
     }
@@ -85,6 +123,7 @@ export const createEnviroventAccessory = (
 
   unitState.on('connectionRestored', () => {
     platform.log.info(`✅ ${accessory.displayName} is back online`);
+    enforceSummerShutdownOff();
   });
 
   unitState.on('pollError', (err: Error) => {
