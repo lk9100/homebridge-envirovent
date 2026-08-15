@@ -19,6 +19,8 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
 
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
+  const showSummerShutdown = ctx.platform.config.advanced?.showSummerShutdownSwitch ?? false;
+
   const settings = unitState.settings;
   // Use the unit's real range, or sensible defaults before first poll
   const varMin = settings?.airflowConfiguration.varMinPercentage ?? 24;
@@ -133,7 +135,7 @@ export const createFanService = (ctx: EnviroventAccessoryContext) => {
           heater: { autoActive: currentSettings.heater.autoActive },
           boost: { mins: currentSettings.boost.mins },
           filter: { resetMonths: currentSettings.filter.resetMonths },
-          summerBypass: { summerShutdown: currentSettings.summerBypass.summerShutdown },
+          summerBypass: { summerShutdown: showSummerShutdown ? currentSettings.summerBypass.summerShutdown : false },
         }),
       );
 
