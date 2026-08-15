@@ -10,6 +10,7 @@ import { createUnitState } from '../state/unit-state.js';
 import { createFanService } from './services/fan.js';
 import { createBoostService } from './services/boost.js';
 import { createFilterService } from './services/filter.js';
+import { createSummerShutdownService } from './services/summer-shutdown.js';
 
 /** Shape shared between the accessory and all service factories. */
 export interface EnviroventAccessoryContext {
@@ -67,16 +68,52 @@ export const createEnviroventAccessory = (
     services.push(createBoostService(ctx));
   }
 
+  const showSummerShutdown = platform.config.advanced?.showSummerShutdownSwitch ?? false;
+  if (showSummerShutdown) {
+    services.push(createSummerShutdownService(ctx));
+  }
+
   // Register service dispose functions
   for (const service of services) {
     if (service.dispose) disposables.push(service.dispose);
   }
 
   // ─── State event handlers ──────────────────────────────────
+  /**
+   * When the summer shutdown switch is hidden, the unit's summer shutdown
+   * mode must stay off: nothing is exposed to control it. On failure the
+   * state is left untouched, so the next event retries (self-healing).
+   */
+  const enforceSummerShutdownOff = async (): Promise<void> => {
+    try {
+      await commandQueue.enqueue(async () => client.setSummerBypass(false));
+      // Preserve sibling fields — same one-level merge applyOptimistic performs
+      const currentSummerBypass = unitState.settings?.summerBypass;
+      unitState.applyOptimistic({
+        summerBypass: {
+          active: currentSummerBypass?.active ?? false,
+          temperature: currentSummerBypass?.temperature ?? 22,
+          summerShutdown: false,
+        },
+      });
+      platform.log.info(`✅ ${accessory.displayName}: summer shutdown disabled (switch hidden)`);
+    } catch (err) {
+      platform.log.warn(`⚠️ ${accessory.displayName}: could not disable summer shutdown: ${(err as Error).message}`);
+    }
+  };
+
+  const enforceHiddenSummerShutdown = (): void => {
+    if (showSummerShutdown) return;
+    if (unitState.settings?.summerBypass.summerShutdown === true) {
+      void enforceSummerShutdownOff();
+    }
+  };
+
   unitState.on('stateChanged', () => {
     for (const service of services) {
       service.update();
     }
+    enforceHiddenSummerShutdown();
   });
 
   unitState.on('connectionLost', () => {
@@ -85,6 +122,7 @@ export const createEnviroventAccessory = (
 
   unitState.on('connectionRestored', () => {
     platform.log.info(`✅ ${accessory.displayName} is back online`);
+    enforceHiddenSummerShutdown();
   });
 
   unitState.on('pollError', (err: Error) => {
