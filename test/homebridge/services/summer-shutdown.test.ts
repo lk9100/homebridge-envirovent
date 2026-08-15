@@ -108,6 +108,17 @@ describe('SummerShutdownService', () => {
     expect(on?.getValue()).toBe(true);
   });
 
+  it('update() pushes false when summer shutdown is off', () => {
+    const { fakeAccessory, platform } = buildTestAccessory(false);
+    const summerShutdownService = createSummerShutdownService(fakeAccessory);
+
+    summerShutdownService.update();
+
+    const service = fakeAccessory.accessory.getService('Summer Shutdown') as unknown as MockService;
+    const on = service?.getCharacteristic(platform.Characteristic.On);
+    expect(on?.getValue()).toBe(false);
+  });
+
   it('reports On=false when settings are null', () => {
     const mockClient = {
       getSettings: vi.fn(),
